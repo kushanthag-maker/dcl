@@ -94,7 +94,7 @@ function extractInteractiveId(msg) {
         if (p.response && p.response.id) return String(p.response.id);
         for (const k of Object.keys(p)) {
           const v = p[k];
-          if (typeof v === 'string' && (v.startsWith('dqcat_') || v.startsWith('dqmenu_') || v.startsWith('dqcmd_') || v.startsWith('dqset_') || v.startsWith('csub_'))) {
+          if (typeof v === 'string' && (v.startsWith('dqcat_') || v.startsWith('dqmenu_') || v.startsWith('dqcmd_') || v.startsWith('dqset_') || v.startsWith('csub_') || v.startsWith('mbox_') || v.startsWith('ssub_'))) {
             return v;
           }
         }
@@ -174,6 +174,12 @@ function routeInteractive(body) {
   }
   if (id.startsWith('csub_')) {
     return { commandName: 'cinesubz', args: [id] };
+  }
+  if (id.startsWith('mbox_')) {
+    return { commandName: 'moviebox', args: [id] };
+  }
+  if (id.startsWith('ssub_')) {
+    return { commandName: 'ssub', args: [id] };
   }
   if (id.startsWith('dqset_')) {
     return { commandName: 'settings', args: [id] };
@@ -322,10 +328,29 @@ async function handleMessage(sock, msg, sessionId) {
     if (routed) {
       commandName = routed.commandName;
       args = routed.args;
-    } else if (/^\d+$/.test(body) && require('../commands/download/cinesubz').hasPending(from)) {
-      // 1b) Active CineSubz movie selection / direct link pick
-      commandName = 'cinesubz';
-      args = [body];
+    } else if (/^\d+$/.test(body)) {
+      // 1b) Active movie selection / direct quality pick for all movie commands
+      const cinesubz = require('../commands/download/cinesubz');
+      const moviebox = require('../commands/download/moviebox');
+      const ssub = require('../commands/download/ssub');
+
+      if (cinesubz.hasPending && cinesubz.hasPending(from)) {
+        commandName = 'cinesubz';
+        args = [body];
+      } else if (moviebox.hasPending && moviebox.hasPending(from)) {
+        commandName = 'moviebox';
+        args = [body];
+      } else if (ssub.hasPending && ssub.hasPending(from)) {
+        commandName = 'ssub';
+        args = [body];
+      } else if (/^[1-9]$/.test(body) && isPanelReply(msg)) {
+        commandName = 'settings';
+        args = ['num', body];
+      } else if (/^[1-6]$/.test(body)) {
+        const catMap = { '1': 'download', '2': 'ai', '3': 'group', '4': 'utility', '5': 'fun', '6': 'owner' };
+        commandName = 'menu';
+        args = ['cat', catMap[body]];
+      }
     } else if (/^[1-9]$/.test(body) && isPanelReply(msg)) {
       // 1c) Settings panel number reply (reply "1" / "2" to the panel)
       commandName = 'settings';
