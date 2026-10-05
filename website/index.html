@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>DARK QUEEN V2 · Pair</title>
+  <meta name="description" content="DARK QUEEN V2 - WhatsApp Multi-Device Bot with Pair Interface and Web Management" />
+  <meta property="og:title" content="DARK QUEEN V2 · Pair" />
+  <meta property="og:description" content="DARK QUEEN V2 - WhatsApp Multi-Device Bot with Pair Interface and Web Management" />
+  <meta name="theme-color" content="#1a0510" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,500&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --rose: #ff4d6d;
+      --rose-soft: #ff8fa3;
+      --pink: #ffb3c1;
+      --blush: #ffe0e9;
+      --deep: #1a0510;
+      --card: rgba(40, 10, 22, 0.72);
+      --glow: rgba(255, 77, 109, 0.55);
+      --gold: #ffd6a5;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { min-height: 100%; }
+    body {
+      font-family: 'Quicksand', system-ui, sans-serif;
+      background: var(--deep);
+      color: var(--blush);
+      overflow-x: hidden;
+      position: relative;
+    }
+    .bg {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(255, 77, 109, 0.28), transparent 55%),
+        radial-gradient(ellipse 70% 50% at 85% 80%, rgba(255, 143, 163, 0.18), transparent 50%),
+        radial-gradient(ellipse 50% 40% at 50% 50%, rgba(90, 20, 45, 0.4), transparent 70%),
+        linear-gradient(160deg, #12030a 0%, #2a0a18 40%, #1a0510 100%);
+      animation: bgPulse 12s ease-in-out infinite alternate;
+    }
+    @keyframes bgPulse {
+      0% { filter: hue-rotate(0deg) brightness(1); }
+      100% { filter: hue-rotate(12deg) brightness(1.08); }
+    }
+    .petal {
+      position: fixed;
+      width: 14px;
+      height: 14px;
+      background: radial-gradient(circle at 30% 30%, var(--pink), var(--rose));
+      border-radius: 50% 0 50% 50%;
+      opacity: 0.55;
+      z-index: 1;
+      pointer-events: none;
+      animation: fall linear infinite;
+    }
+    @keyframes fall {
+      0% { transform: translateY(-10vh) rotate(0deg); opacity: 0; }
+      10% { opacity: 0.6; }
+      100% { transform: translateY(110vh) rotate(720deg) translateX(40px); opacity: 0; }
+    }
+    .sparkle {
+      position: fixed;
+      width: 4px;
+      height: 4px;
+      background: #fff;
+      border-radius: 50%;
+      z-index: 1;
+      pointer-events: none;
+      animation: twinkle ease-in-out infinite;
+      box-shadow: 0 0 8px #fff, 0 0 16px var(--rose-soft);
+    }
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.15; transform: scale(0.6); }
+      50% { opacity: 1; transform: scale(1.4); }
+    }
+    .wrap {
+      position: relative;
+      z-index: 2;
+      max-width: 440px;
+      margin: 0 auto;
+      padding: 32px 18px 48px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .brand { text-align: center; margin-bottom: 22px; animation: floatIn 1s ease-out both; }
+    @keyframes floatIn {
+      from { opacity: 0; transform: translateY(-24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .crown {
+      font-size: 2.5rem;
+      display: inline-block;
+      animation: bounce 2.4s ease-in-out infinite;
+      filter: drop-shadow(0 0 12px var(--glow));
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    h1 {
+      font-family: 'Cormorant Garamond', serif;
+      font-weight: 700;
+      font-size: clamp(2rem, 8vw, 2.7rem);
+      letter-spacing: 0.08em;
+      background: linear-gradient(120deg, #fff 0%, var(--pink) 40%, var(--rose) 70%, var(--gold) 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: shine 5s linear infinite;
+      margin-top: 4px;
+    }
+    @keyframes shine { to { background-position: 200% center; } }
+    .tagline { font-size: 0.92rem; color: var(--pink); opacity: 0.9; margin-top: 6px; font-weight: 500; }
+    .v2-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 12px;
+      padding: 5px 16px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(255,77,109,0.35), rgba(255,179,193,0.15));
+      border: 1px solid rgba(255, 143, 163, 0.45);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: #fff;
+      animation: pulseGlow 2.5s ease-in-out infinite;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255, 77, 109, 0.4); }
+      50% { box-shadow: 0 0 22px 4px rgba(255, 77, 109, 0.35); }
+    }
+    .card {
+      width: 100%;
+      background: var(--card);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 143, 163, 0.32);
+      border-radius: 24px;
+      padding: 24px 18px 26px;
+      box-shadow:
+        0 20px 50px rgba(0, 0, 0, 0.45),
+        0 0 40px rgba(255, 77, 109, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      animation: floatIn 1s 0.15s ease-out both;
+    }
+    .card-title { font-family: 'Cormorant Garamond', serif; font-size: 1.4rem; text-align: center; color: #fff; margin-bottom: 6px; }
+    .card-sub { text-align: center; font-size: 0.82rem; color: var(--pink); margin-bottom: 20px; opacity: 0.9; }
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--rose-soft);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .field input {
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 143, 163, 0.3);
+      background: rgba(0, 0, 0, 0.35);
+      color: #fff;
+      font-family: inherit;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    .field input::placeholder { color: rgba(255, 179, 193, 0.4); }
+    .field input:focus { border-color: var(--rose); box-shadow: 0 0 0 3px rgba(255, 77, 109, 0.2); }
+    .btn {
+      width: 100%;
+      margin-top: 8px;
+      padding: 14px 18px;
+      border: none;
+      border-radius: 999px;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      color: #fff;
+      background: linear-gradient(135deg, #ff4d6d, #c9184a 50%, #ff8fa3);
+      background-size: 200% 200%;
+      animation: btnGrad 4s ease infinite;
+      box-shadow: 0 8px 28px rgba(255, 77, 109, 0.4);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    @keyframes btnGrad {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .btn:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 12px 36px rgba(255, 77, 109, 0.55); }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid rgba(255, 143, 163, 0.45);
+      box-shadow: none;
+      animation: none;
+      margin-top: 10px;
+      color: var(--pink);
+    }
+    .btn-ghost:hover { background: rgba(255, 77, 109, 0.12); box-shadow: none; }
+    .menu-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(10, 2, 6, 0.88);
+      backdrop-filter: blur(12px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      animation: fadeIn 0.3s ease-out;
+    }
+    .menu-modal.show { display: flex; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .menu-modal-content {
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      background: #190510;
+      border: 1px solid rgba(255, 143, 163, 0.4);
+      border-radius: 24px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 40px rgba(255, 77, 109, 0.25);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .menu-modal-header {
+      padding: 16px 20px;
+      background: rgba(30, 8, 18, 0.95);
+      border-bottom: 1px solid rgba(255, 143, 163, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .menu-modal-header h3 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.4rem;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .menu-modal-close {
+      background: rgba(255, 77, 109, 0.2);
+      border: 1px solid rgba(255, 143, 163, 0.4);
+      color: #fff;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .menu-modal-close:hover { background: rgba(255, 77, 109, 0.5); }
+    .theme-selector-bar {
+      display: flex;
+      gap: 6px;
+      padding: 12px 16px;
+      background: rgba(18, 4, 11, 0.85);
+      border-bottom: 1px solid rgba(255, 143, 163, 0.15);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .theme-selector-bar::-webkit-scrollbar { display: none; }
+    .theme-tab-btn {
+      flex-shrink: 0;
+      padding: 7px 15px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--pink);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 143, 163, 0.25);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .theme-tab-btn.active {
+      background: linear-gradient(135deg, #ff4d6d, #c9184a);
+      color: #fff;
+      border-color: #ff4d6d;
+      box-shadow: 0 0 14px rgba(255, 77, 109, 0.4);
+    }
+    .menu-scroll-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      background:
+        radial-gradient(ellipse at 50% 0%, rgba(255, 77, 109, 0.1), transparent 70%),
+        #12040b;
+    }
+    .wa-bubble {
+      background: #1f2c34;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px 12px 12px 2px;
+      padding: 14px 16px;
+      color: #e9edef;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      position: relative;
+    }
+    .wa-bubble-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      font-family: 'Quicksand', system-ui, sans-serif;
+    }
+    .wa-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--rose);
+    }
+    .wa-info h4 { font-size: 0.9rem; color: #fff; margin: 0; }
+    .wa-info p { font-size: 0.72rem; color: #25d366; margin: 0; }
+    .copy-menu-btn {
+      margin-top: 12px;
+      width: 100%;
+      padding: 10px;
+      border-radius: 10px;
+      background: rgba(255, 77, 109, 0.18);
+      border: 1px solid rgba(255, 143, 163, 0.35);
+      color: #fff;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.2s;
+    }
+    .copy-menu-btn:hover { background: rgba(255, 77, 109, 0.3); }
+    .code-box { display: none; margin-top: 18px; text-align: center; animation: floatIn 0.5s ease-out both; }
+    .code-box.show { display: block; }
+    .code-value {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 2.2rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      color: #fff;
+      text-shadow: 0 0 24px var(--glow);
+      padding: 14px 20px;
+      border-radius: 16px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255, 143, 163, 0.4);
+      cursor: pointer;
+    }
+    .qr-box { display: none; margin-top: 18px; text-align: center; animation: floatIn 0.6s ease-out both; }
+    .qr-box.show { display: block; }
+    .qr-frame {
+      display: inline-block;
+      padding: 12px;
+      border-radius: 18px;
+      background: #fff;
+      box-shadow: 0 0 0 3px var(--rose-soft), 0 0 30px var(--glow);
+      animation: qrPulse 2.8s ease-in-out infinite;
+    }
+    @keyframes qrPulse {
+      0%, 100% { box-shadow: 0 0 0 3px var(--rose-soft), 0 0 20px var(--glow); }
+      50% { box-shadow: 0 0 0 5px var(--rose), 0 0 40px var(--glow); }
+    }
+    .qr-frame img { display: block; width: 220px; height: 220px; border-radius: 8px; }
+    .qr-hint { margin-top: 12px; font-size: 0.8rem; color: var(--pink); line-height: 1.45; }
+    .status { margin-top: 14px; text-align: center; font-size: 0.85rem; min-height: 1.4em; color: var(--pink); }
+    .status.ok { color: #4ade80; }
+    .status.err { color: #fb7185; }
+    .status.loading { color: var(--gold); }
+    .steps { margin-top: 24px; width: 100%; padding: 0 4px; }
+    .step { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; opacity: 0; animation: floatIn 0.7s ease-out forwards; }
+    .step:nth-child(1) { animation-delay: 0.35s; }
+    .step:nth-child(2) { animation-delay: 0.5s; }
+    .step:nth-child(3) { animation-delay: 0.65s; }
+    .step-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--rose), #c9184a);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(255, 77, 109, 0.35);
+    }
+    .step p { font-size: 0.82rem; line-height: 1.4; color: var(--blush); opacity: 0.92; padding-top: 4px; }
+    footer { margin-top: auto; padding-top: 32px; text-align: center; font-size: 0.72rem; color: rgba(255, 179, 193, 0.55); letter-spacing: 0.04em; }
+    footer strong { color: var(--rose-soft); font-weight: 600; }
+    .heart-float { position: fixed; bottom: -20px; font-size: 1.2rem; z-index: 1; pointer-events: none; animation: heartUp 7s linear forwards; opacity: 0.7; }
+    @keyframes heartUp {
+      0% { transform: translateY(0) scale(0.6); opacity: 0; }
+      15% { opacity: 0.75; }
+      100% { transform: translateY(-110vh) scale(1.2); opacity: 0; }
+    }
+    @media (max-width: 380px) {
+      .qr-frame img { width: 180px; height: 180px; }
+      .code-value { font-size: 1.7rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div id="fx"></div>
+
+  <div class="wrap">
+    <header class="brand">
+      <div class="crown">👑</div>
+      <h1>DARK QUEEN</h1>
+      <p class="tagline">WhatsApp Multi-Device · Girl Rose Edition</p>
+      <div class="v2-badge">✨ V2 · PAIRING ✨</div>
+    </header>
+
+    <div class="card">
+      <h2 class="card-title">🌸 Pair Your Number</h2>
+      <p class="card-sub">Enter WhatsApp number with country code</p>
+
+      <div class="field">
+        <label>Phone number</label>
+        <input id="phone" type="tel" inputmode="numeric" placeholder="9477XXXXXXX" autocomplete="tel" />
+      </div>
+
+      <button class="btn" id="btnPair" type="button">💗 Get Pairing Code</button>
+      <button class="btn btn-ghost" id="btnQr" type="button">📷 Show QR Code</button>
+      <button class="btn btn-ghost" id="btnMenuPreview" type="button" style="border-color: rgba(255, 214, 165, 0.45); color: var(--gold); margin-top: 10px;">✨ View Bot Menu &amp; Themes (UI)</button>
+
+      <div class="status" id="status"></div>
+
+      <div class="code-box" id="codeBox">
+        <div class="code-value" id="codeValue" title="Tap to copy">------</div>
+        <p class="qr-hint" style="margin-top:10px">Tap code to copy · Enter it in WhatsApp → Linked Devices</p>
+      </div>
+
+      <div class="qr-box" id="qrBox">
+        <div class="qr-frame">
+          <img id="qrImg" alt="QR Code" width="220" height="220" />
+        </div>
+        <p class="qr-hint">
+          WhatsApp → Linked Devices → Link a Device<br />
+          Scan this rose QR 🌹
+        </p>
+      </div>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <p>Type your number with country code (no +)</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <p>Tap <strong>Get Pairing Code</strong> or scan QR</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <p>Confirm in WhatsApp · bot comes online 💖</p>
+      </div>
+    </div>
+
+    <footer>
+      Powered by <strong>Zayra Dev</strong> &amp; <strong>RedDevil</strong><br />
+      🌹 DARK QUEEN OFC · V2
+    </footer>
+  </div>
+
+  <div class="menu-modal" id="menuModal">
+    <div class="menu-modal-content">
+      <div class="menu-modal-header">
+        <h3><span>👑</span> Bot Menu UI Showcase</h3>
+        <button class="menu-modal-close" id="btnCloseMenuModal" type="button">&times;</button>
+      </div>
+
+      <div class="theme-selector-bar" id="themeTabs">
+        <button class="theme-tab-btn active" data-theme="royal" type="button">👑 Royal Queen</button>
+        <button class="theme-tab-btn" data-theme="cyber" type="button">⚡ Cyberpunk</button>
+        <button class="theme-tab-btn" data-theme="rose" type="button">🌸 Pink Rose</button>
+        <button class="theme-tab-btn" data-theme="minimal" type="button">🖤 Minimal Pro</button>
+      </div>
+
+      <div class="menu-scroll-body">
+        <div class="wa-bubble-header">
+          <img class="wa-avatar" src="https://files.catbox.moe/yjyx4x.webp" alt="Avatar" />
+          <div class="wa-info">
+            <h4>DARK QUEEN V2</h4>
+            <p>● Online · WhatsApp Multi-Device</p>
+          </div>
+        </div>
+
+        <div class="wa-bubble" id="waBubbleText">Loading Menu UI...</div>
+
+        <button class="copy-menu-btn" id="btnCopyMenu" type="button">📋 Copy Command (.menu)</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var API_BASE = window.PAIR_API || location.origin;
+      var fx = document.getElementById('fx');
+
+      for (var i = 0; i < 16; i++) {
+        var p = document.createElement('div');
+        p.className = 'petal';
+        p.style.left = Math.random() * 100 + 'vw';
+        p.style.animationDuration = 8 + Math.random() * 12 + 's';
+        p.style.animationDelay = Math.random() * 8 + 's';
+        p.style.width = 10 + Math.random() * 12 + 'px';
+        p.style.height = p.style.width;
+        p.style.opacity = 0.35 + Math.random() * 0.4;
+        fx.appendChild(p);
+      }
+      for (var j = 0; j < 20; j++) {
+        var s = document.createElement('div');
+        s.className = 'sparkle';
+        s.style.left = Math.random() * 100 + 'vw';
+        s.style.top = Math.random() * 100 + 'vh';
+        s.style.animationDuration = 2 + Math.random() * 3 + 's';
+        s.style.animationDelay = Math.random() * 3 + 's';
+        fx.appendChild(s);
+      }
+
+      function spawnHeart() {
+        var h = document.createElement('div');
+        h.className = 'heart-float';
+        h.textContent = ['💕', '🌸', '🌹', '💗', '✨'][Math.floor(Math.random() * 5)];
+        h.style.left = 8 + Math.random() * 84 + 'vw';
+        h.style.fontSize = 0.9 + Math.random() * 0.8 + 'rem';
+        document.body.appendChild(h);
+        setTimeout(function () { h.remove(); }, 7000);
+      }
+      setInterval(spawnHeart, 2000);
+
+      var statusEl = document.getElementById('status');
+      var phoneEl = document.getElementById('phone');
+      var qrBox = document.getElementById('qrBox');
+      var qrImg = document.getElementById('qrImg');
+      var codeBox = document.getElementById('codeBox');
+      var codeValue = document.getElementById('codeValue');
+      var activeSessionId = null;
+      var pollTimer = null;
+
+      function setStatus(text, kind) {
+        statusEl.textContent = text || '';
+        statusEl.className = 'status' + (kind ? ' ' + kind : '');
+      }
+
+      function cleanPhone(v) {
+        return String(v || '').replace(/\D/g, '');
+      }
+
+      function stopPolling() {
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      }
+
+      // Poll until the bot comes online, then show success
+      function startStatusPolling(sessionId) {
+        stopPolling();
+        pollTimer = setInterval(async function () {
+          try {
+            var res = await fetch(API_BASE + '/api/session/' + encodeURIComponent(sessionId), { cache: 'no-store' });
+            if (!res.ok) return;
+            var st = await res.json();
+            if (st.status === 'online') {
+              stopPolling();
+              setStatus('🎉 Connected! Your bot is ONLINE 💖', 'ok');
+              spawnHeart(); spawnHeart(); spawnHeart();
+            } else if (st.status === 'error') {
+              stopPolling();
+              setStatus('Error: ' + (st.error || 'unknown'), 'err');
+            }
+          } catch (e) {}
+        }, 3000);
+      }
+
+      // Copy code on tap
+      codeValue.addEventListener('click', function () {
+        var code = codeValue.textContent.trim();
+        if (!code || code === '------') return;
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(code).then(function () {
+            setStatus('Code copied 📋 · paste it in WhatsApp', 'ok');
+          });
+        }
+      });
+
+      // ===== FIX: server expects POST /api/pair with JSON body { phone } =====
+      document.getElementById('btnPair').addEventListener('click', async function () {
+        var num = cleanPhone(phoneEl.value);
+        if (num.length < 10 || num.length > 15) {
+          setStatus('Enter number with country code, no + (e.g. 9477XXXXXXX) 💕', 'err');
+          return;
+        }
+        setStatus('Requesting pairing code… (up to 30s)', 'loading');
+        this.disabled = true;
+        qrBox.classList.remove('show');
+        codeBox.classList.remove('show');
+        stopPolling();
+        try {
+          var res = await fetch(API_BASE + '/api/pair', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: num })
+          });
+          var data = await res.json().catch(function () { return {}; });
+          if (!res.ok || !data.code) {
+            throw new Error(data.error || ('Server returned ' + res.status));
+          }
+          codeValue.textContent = String(data.code);
+          codeBox.classList.add('show');
+          activeSessionId = data.sessionId || null;
+          setStatus('Enter this code in WhatsApp 💖 waiting for you to confirm…', 'ok');
+          if (activeSessionId) startStatusPolling(activeSessionId);
+        } catch (err) {
+          setStatus('Pair failed: ' + err.message, 'err');
+        }
+        this.disabled = false;
+      });
+
+      // ===== FIX: QR via POST /api/session/start then read /api/session/:id =====
+      document.getElementById('btnQr').addEventListener('click', async function () {
+        setStatus('Loading QR… (up to 30s)', 'loading');
+        this.disabled = true;
+        codeBox.classList.remove('show');
+        stopPolling();
+        try {
+          var sessionId = activeSessionId || ('qr_' + Date.now().toString(36));
+          var res = await fetch(API_BASE + '/api/session/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: sessionId })
+          });
+          var data = await res.json().catch(function () { return {}; });
+          if (!res.ok) throw new Error(data.error || ('Server returned ' + res.status));
+
+          // Poll for the QR data URL (socket needs a few seconds to connect)
+          var deadline = Date.now() + 30000;
+          var qr = null;
+          while (Date.now() < deadline) {
+            var r2 = await fetch(API_BASE + '/api/session/' + encodeURIComponent(sessionId), { cache: 'no-store' });
+            if (r2.ok) {
+              var st = await r2.json();
+              if (st.qr) { qr = st.qr; break; }
+              if (st.status === 'online') {
+                setStatus('This session is already paired ✅', 'ok');
+                this.disabled = false;
+                return;
+              }
+            }
+            await new Promise(function (r) { setTimeout(r, 1500); });
+          }
+          if (!qr) throw new Error('QR not ready yet — try again in a few seconds');
+
+          qrImg.src = qr;
+          qrBox.classList.add('show');
+          activeSessionId = sessionId;
+          setStatus('Scan with WhatsApp Linked Devices 🌹', 'ok');
+          startStatusPolling(sessionId);
+        } catch (err) {
+          setStatus(err.message, 'err');
+        }
+        this.disabled = false;
+      });
+      // Modal elements
+      var menuModal = document.getElementById('menuModal');
+      var btnMenuPreview = document.getElementById('btnMenuPreview');
+      var btnCloseMenuModal = document.getElementById('btnCloseMenuModal');
+      var waBubbleText = document.getElementById('waBubbleText');
+      var themeTabs = document.getElementById('themeTabs');
+      var btnCopyMenu = document.getElementById('btnCopyMenu');
+      var currentTheme = 'royal';
+
+      var THEME_TEMPLATES = {
+        royal: "╔════════════════════════════╗\n  👑 𝓓𝓐𝓡𝓚 𝓠𝓤𝓔𝓔𝓝 𝓥𝟐 👑\n  ✨ 𝐐𝐔𝐄𝐄𝐍 𝐎𝐅 𝐓𝐇𝐄 𝐒𝐇𝐀𝐃𝐎𝐖𝐒 ✨\n╚════════════════════════════╝\n\n╭─〔 🌸 𝐔𝐒𝐄𝐑 & 𝐒𝐘𝐒𝐓𝐄𝐌 〕─•\n│ 👤 𝐔𝐬𝐞𝐫     : Visitor\n│ 👑 𝐒𝐭𝐚𝐭𝐮𝐬   : 𝐎𝐍𝐋𝐈𝐍𝐄 ⚡\n│ 🌏 𝐆𝐫𝐞𝐞𝐭    : 🌅 Good Morning\n│ ⏰ 𝐓𝐢𝐦𝐞     : 09:45:12 AM\n│ 📅 𝐃𝐚𝐭𝐞     : 2026-10-05\n│ ⏳ 𝐔𝐩𝐭𝐢𝐦𝐞   : 2d 14h 22m\n│ 💾 𝐑𝐀𝐌      : 42.8 MB\n│ 📦 𝐂𝐨𝐦𝐦𝐚𝐧𝐝𝐬 : 46 Available\n│ ⚙️ 𝐏𝐫𝐞𝐟𝐢𝐱   : 「 . 」\n│ 🤖 𝐁𝐨𝐭 𝐍𝐚𝐦𝐞 : Dark Queen\n│ 👑 𝐎𝐰𝐧𝐞𝐫    : Red Devil × Zayra\n╰─────────────────────────•\n\n╭─〔 💎 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃 (17) 〕─•\n│ ├─⋄ .yt <url>\n│ ├─⋄ .song <name>\n│ ├─⋄ .fb <url>\n│ ├─⋄ .tt <url>\n│ ├─⋄ .apk <name>\n│ └─⋄ .moviebox <search>\n╰─────────────────────────•\n\n╭─〔 🤖 𝐀𝐈 & 𝐒𝐌𝐀𝐑𝐓 (6) 〕─•\n│ ├─⋄ .gpt <query>\n│ ├─⋄ .claude <query>\n│ ├─⋄ .llama <query>\n│ └─⋄ .ai <query>\n╰─────────────────────────•\n\n╭─〔 👥 𝐆𝐑𝐎𝐔𝐏 𝐓𝐎𝐎𝐋𝐒 (4) 〕─•\n│ ├─⋄ .kick <@user>\n│ ├─⋄ .promote <@user>\n│ ├─⋄ .demote <@user>\n│ └─⋄ .tagall <text>\n╰─────────────────────────•\n\n╭─〔 🌸 𝐔𝐓𝐈𝐋𝐈𝐓𝐈𝐄𝐒 (16) 〕─•\n│ ├─⋄ .alive\n│ ├─⋄ .ping\n│ ├─⋄ .runtime\n│ ├─⋄ .settings\n│ ├─⋄ .setmenu <theme>\n│ └─⋄ .qr <text>\n╰─────────────────────────•\n\n╭─〔 🎀 𝐅𝐔𝐍 & 𝐆𝐀𝐌𝐄𝐒 (4) 〕─•\n│ ├─⋄ .dice\n│ ├─⋄ .flip\n│ ├─⋄ .joke\n│ └─⋄ .emomix\n╰─────────────────────────•\n\n╭─〔 👑 𝐎𝐖𝐍𝐄𝐑 𝐂𝐎𝐍𝐓𝐑𝐎𝐋 (5) 〕─•\n│ ├─⋄ .restart\n│ ├─⋄ .shutdown\n│ ├─⋄ .owner\n│ ├─⋄ .send\n│ └─⋄ .active\n╰─────────────────────────•\n\n╭─〔 💡 𝐐𝐔𝐈𝐂𝐊 𝐓𝐈𝐏 〕─•\n│ 🌸 Type .menu <category> for single view\n│ 🎨 Styles: .setmenu royal | cyber | rose | minimal\n╰─────────────────────────•\n\n> 𓆩🌸 𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐 · 𝐐𝐔𝐄𝐄𝐍 𝐎𝐅 𝐇𝐄𝐀𝐑𝐓𝐒 🌸𓆪",
+        cyber: "╔════════════════════════════╗\n  ⚡ ⟦ 𝐙𝐀𝐘𝐑𝐀 · 𝐂𝐘𝐁𝐄𝐑 𝐐𝐔𝐄𝐄𝐍 ⟧ ⚡\n  [ SYSTEM STATUS : FULL OPERATIONAL ]\n╚════════════════════════════╝\n\n┌───〔 🌐 NEURAL CORE 〕───\n│ ❯ Operator : Operator\n│ ❯ Sys Time : 09:45:12\n│ ❯ Active   : 2d 14h 22m\n│ ❯ Memory   : 42.8 MB\n│ ❯ Modules  : 46 Loaded\n│ ❯ Command  : [ . ]\n│ ❯ Core ID  : Dark Queen\n└───[ ONLINE ]─────────────\n\n┌───〔 💎 NET_DOWNLOAD (17) 〕───\n│ ❯❯ .yt\n│ ❯❯ .song\n│ ❯❯ .fb\n│ ❯❯ .tt\n│ ❯❯ .apk\n└───[ READY ]──────────────\n\n┌───〔 🤖 NET_AI (6) 〕───\n│ ❯❯ .gpt\n│ ❯❯ .claude\n│ ❯❯ .llama\n└───[ READY ]──────────────\n\n┌───〔 🌸 NET_UTILITIES (16) 〕───\n│ ❯❯ .alive\n│ ❯❯ .ping\n│ ❯❯ .settings\n│ ❯❯ .setmenu\n└───[ READY ]──────────────\n\n> ⟦ ⚡ DARK QUEEN V2 · NEON MATRIX ⚡ ⟧",
+        rose: "╭━━━━━━━━━━━━━━━━━━━━━━━━━━━╮\n  🌸 𓆩 𝐏𝐈𝐍𝐊 𝐑𝐎𝐒𝐄 · 𝐙𝐀𝐘𝐑𝐀 𓆪 🌸\n  ╰┈➤ 𝒢𝑒𝓃𝓉𝓁𝑒 & 𝒫𝑜𝓌𝑒𝓇𝒻𝓊𝓁 𝒫𝑟𝒾𝓃𝒸𝑒𝓈𝓈\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n╭───┈〔 ୨୧ 𝓈𝓉𝒶𝓉𝓊𝓈 ୨୧ 〕┈───╮\n│ 🌸 𝒽𝑒𝓁𝓁𝑜  : Princess\n│ 🎀 𝓉𝒾𝓂𝑒   : 09:45 AM\n│ 🌷 𝓊𝓅𝓉𝒾𝓂𝑒 : 2d 14h\n│ 🍰 𝓅𝓇𝑒𝒻𝒾𝓍  : 「 . 」\n│ 🦄 𝒸𝓂𝒹𝓈   : 46 features\n│ 👑 𝒷𝑜𝓉    : Dark Queen\n╰───────────────────────────╯\n\n╭───┈〔 ୨୧ 💎 𝒹𝑜𝓌𝓃𝓁𝑜𝒶𝒹 ୨୧ 〕┈───╮\n│ ✿ .yt\n│ ✿ .song\n│ ✿ .apk\n│ ✿ .fb\n╰───────────────────────────────╯\n\n╭───┈〔 ୨୧ 🤖 𝒶𝒾 ୨୧ 〕┈───╮\n│ ✿ .gpt\n│ ✿ .claude\n│ ✿ .llama\n╰───────────────────────────────╯\n\n╭───┈〔 ୨୧ 🌸 𝓊𝓉𝒾𝓁𝒾𝓉𝒾𝑒𝓈 ୨୧ 〕┈───╮\n│ ✿ .alive\n│ ✿ .ping\n│ ✿ .setmenu\n╰───────────────────────────────╯\n\n> 𓆩 🌸 𝒟𝒶𝓇𝓀 𝒬𝓊𝑒𝑒𝓃 𝒱𝟤 · 𝒫𝒾𝓃𝓀 𝑅𝑜𝓈𝑒 🌸 𓆪",
+        minimal: "┌── 👑 DARK QUEEN V2 ──┐\n  Online • 2d 14h • 46 cmds\n└───────────────────────┘\n\n• User: User | Prefix: . | Bot: Dark Queen\n• Time: 09:45 | RAM: 42.8 MB\n\n[ 💎 DOWNLOAD ]\n  .yt  •  .song  •  .fb  •  .tt  •  .apk\n\n[ 🤖 AI ]\n  .gpt  •  .claude  •  .llama  •  .ai\n\n[ 👥 GROUP ]\n  .kick  •  .promote  •  .demote  •  .tagall\n\n[ 🌸 UTILITIES ]\n  .alive  •  .ping  •  .settings  •  .setmenu\n\n> DARK QUEEN V2 • Minimal"
+      };
+
+      function renderPreview(theme) {
+        currentTheme = theme;
+        waBubbleText.textContent = THEME_TEMPLATES[theme] || THEME_TEMPLATES.royal;
+      }
+
+      if (btnMenuPreview) {
+        btnMenuPreview.addEventListener('click', function () {
+          menuModal.classList.add('show');
+          renderPreview(currentTheme);
+        });
+      }
+
+      if (btnCloseMenuModal) {
+        btnCloseMenuModal.addEventListener('click', function () {
+          if (menuModal) menuModal.classList.remove('show');
+        });
+      }
+
+      if (menuModal) {
+        menuModal.addEventListener('click', function (e) {
+          if (e.target === menuModal) menuModal.classList.remove('show');
+        });
+      }
+
+      if (themeTabs) {
+        themeTabs.addEventListener('click', function (e) {
+          var btn = e.target.closest('.theme-tab-btn');
+          if (!btn) return;
+          themeTabs.querySelectorAll('.theme-tab-btn').forEach(function (b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          renderPreview(btn.dataset.theme);
+        });
+      }
+
+      if (btnCopyMenu) {
+        btnCopyMenu.addEventListener('click', function () {
+          if (navigator.clipboard) {
+            navigator.clipboard.writeText('.menu --' + currentTheme).then(function () {
+              btnCopyMenu.textContent = '✅ Copied: .menu --' + currentTheme;
+              setTimeout(function () {
+                btnCopyMenu.textContent = '📋 Copy Sample Command (.menu)';
+              }, 2000);
+            });
+          }
+        });
+      }
+
+      // Fetch dynamic menu commands from API if available
+      fetch(API_BASE + '/api/menu')
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (data && data.total) {
+            console.log('Loaded commands count:', data.total);
+          }
+        })
+        .catch(function () {});
+    })();
+  </script>
+</body>
+</html>
