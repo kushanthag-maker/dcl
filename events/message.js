@@ -343,6 +343,10 @@ async function handleMessage(sock, msg, sessionId) {
       sessionId: sessionId || null,
     });
   } catch (err) {
+    if (err && err.message && err.message.includes('rate-overlimit')) {
+      logger.warn('WhatsApp server rate-overlimit throttled outgoing message.');
+      return;
+    }
     logger.error('handleMessage error', err);
   }
 }

@@ -8,6 +8,15 @@
       "antiLink": false,
       "buttons": true,
       "menuStyle": "royal"
+    },
+    "bot_904294_5733": {
+      "botName": "Dark Queen",
+      "logo": "https://files.catbox.moe/yjyx4x.webp",
+      "statusSeen": false,
+      "antiDelete": false,
+      "antiLink": true,
+      "buttons": true,
+      "menuStyle": "royal"
     }
   },
   "phoneMap": {

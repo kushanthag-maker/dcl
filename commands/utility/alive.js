@@ -2,9 +2,18 @@ const config = require('../../config');
 const { getSettings } = require('../../lib/botSettings');
 const moment = require('moment-timezone');
 const os = require('os');
+const logger = require('../../lib/logger');
+
+const DEFAULT_ALIVE_LOGO = 'https://files.catbox.moe/yjyx4x.webp';
 
 function getAliveLogo(sessionId) {
-  try { return getSettings(sessionId).logo || 'https://files.catbox.moe/4dvou4.png'; } catch { return 'https://files.catbox.moe/4dvou4.png'; }
+  try {
+    const logo = getSettings(sessionId).logo || DEFAULT_ALIVE_LOGO;
+    if (!logo || logo.includes('4dvou4.png') || logo.includes('bp9p86.png')) return DEFAULT_ALIVE_LOGO;
+    return logo;
+  } catch {
+    return DEFAULT_ALIVE_LOGO;
+  }
 }
 
 function formatUptime(sec) {
@@ -34,27 +43,26 @@ module.exports = {
   category: 'utility',
 
   async execute({ sock, msg, from, sessionId }) {
-    try {
-      const sid = sessionId || null;
-      const settings = getSettings(sid);
-      const botName = settings.botName || config.botName || 'Zayra';
-      const prefix = config.prefix || '.';
-      const runtime = formatUptime(process.uptime());
-      const now = moment()
-        .tz(config.timezone || 'Asia/Colombo')
-        .format('YYYY-MM-DD  HH:mm:ss');
+    const sid = sessionId || null;
+    const settings = getSettings(sid);
+    const botName = settings.botName || config.botName || 'Dark Queen';
+    const prefix = config.prefix || '.';
+    const runtime = formatUptime(process.uptime());
+    const now = moment()
+      .tz(config.timezone || 'Asia/Colombo')
+      .format('YYYY-MM-DD  HH:mm:ss');
 
-      const mem = process.memoryUsage();
-      const usedMem = formatBytes(mem.heapUsed);
-      const totalMem = formatBytes(os.totalmem());
-      const freeMem = formatBytes(os.freemem());
-      const platform = `${os.type()} ${os.arch()}`;
-      const nodeVer = process.version;
+    const mem = process.memoryUsage();
+    const usedMem = formatBytes(mem.heapUsed);
+    const totalMem = formatBytes(os.totalmem());
+    const freeMem = formatBytes(os.freemem());
+    const platform = `${os.type()} ${os.arch()}`;
+    const nodeVer = process.version;
 
-      const userJid = msg.key.participant || msg.key.remoteJid || '';
-      const user = String(userJid).split('@')[0].split(':')[0];
+    const userJid = msg.key.participant || msg.key.remoteJid || '';
+    const user = String(userJid).split('@')[0].split(':')[0];
 
-      const caption = `
+    const caption = `
 ╭═══════════════╮
 │  ⚡ *${botName}*
 ╰═══════════════╯
@@ -83,11 +91,13 @@ module.exports = {
 │
 │  💡 Type *${prefix}menu* for commands
 │  💜 Fast · Stable · Secure
-│  🔥 *Zayra* › _v1.0_
+│  👑 *${botName}* › _v2.0_
 │
 ╰──────────────────────╯
 `.trim();
 
+    // Primary attempt: image with status caption
+    try {
       await sock.sendMessage(
         from,
         {
@@ -98,16 +108,32 @@ module.exports = {
         { quoted: msg }
       );
     } catch (err) {
-      console.error('Alive Error:', err.message);
-      // Fallback text-only
-      const runtime = formatUptime(process.uptime());
-      await sock.sendMessage(
-        from,
-        {
-          text: `✅ *${config.botName || 'Bot'}* is Online!\n⏱ Runtime: ${runtime}`,
-        },
-        { quoted: msg }
-      );
+      // If WhatsApp returns rate-overlimit on media upload, gracefully fall back to text
+      const isRateLimit = err?.message && err.message.includes('rate-overlimit');
+      if (isRateLimit) {
+        logger.warn('Alive media upload hit rate-overlimit, falling back to text response');
+      } else {
+        logger.warn('Alive image send fallback: ' + (err?.message || err));
+      }
+
+      try {
+        await sock.sendMessage(
+          from,
+          {
+            text: caption,
+            mentions: [userJid],
+          },
+          { quoted: msg }
+        );
+      } catch (textErr) {
+        try {
+          await sock.sendMessage(
+            from,
+            { text: `✅ *${botName}* is Online! ⚡\n⏱ Runtime: ${runtime}\n🧠 RAM: ${usedMem}` },
+            { quoted: msg }
+          );
+        } catch (_) {}
+      }
     }
   },
 };
