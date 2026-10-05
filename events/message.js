@@ -232,10 +232,10 @@ async function handleMessage(sock, msg, sessionId) {
 
     // AntiLink Protection Check in Groups
     const currentSettings = getSettings(sessionId);
-    const isAntiLinkActive = isGroup && !isFromMe && (antiLinkStore.isGroupEnabled(from) || !!currentSettings.antiLink);
+    const isAntiLinkActive = isGroup && (antiLinkStore.isGroupEnabled(from) || !!currentSettings.antiLink);
 
     if (isAntiLinkActive) {
-      const waLinkRegex = /(https?:\/\/)?(chat\.whatsapp\.com\/[0-9A-Za-z_-]{16,36}|whatsapp\.com\/channel\/[0-9A-Za-z_-]{16,36}|wa\.me\/[0-9+]+|api\.whatsapp\.com\/send|t\.me\/[0-9A-Za-z_]+|telegram\.me\/[0-9A-Za-z_]+)/i;
+      const waLinkRegex = /(https?:\/\/|www\.)?(chat\.whatsapp\.com\/[0-9A-Za-z_-]{10,40}|whatsapp\.com\/channel\/[0-9A-Za-z_-]{10,40}|wa\.me\/[0-9+]+|api\.whatsapp\.com\/send|t\.me\/[0-9A-Za-z_]+|telegram\.me\/[0-9A-Za-z_]+|(?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/i;
       const rawText = (
         msg.message?.conversation ||
         msg.message?.extendedTextMessage?.text ||
@@ -275,9 +275,19 @@ async function handleMessage(sock, msg, sessionId) {
 
             if (!isSenderAdmin) {
               if (isBotAdmin) {
+                const deleteKey = {
+                  remoteJid: from,
+                  fromMe: !!msg.key.fromMe,
+                  id: msg.key.id,
+                  participant: msg.key.participant || sender,
+                };
                 try {
-                  await sock.sendMessage(from, { delete: msg.key });
-                } catch (_) {}
+                  await sock.sendMessage(from, { delete: deleteKey });
+                } catch (_) {
+                  try {
+                    await sock.sendMessage(from, { delete: msg.key });
+                  } catch (_) {}
+                }
                 try {
                   await sock.sendMessage(from, {
                     text: `🚫 @${senderNumber} *Links are strictly forbidden in this group!* 🚫\n_Message deleted by AntiLink protection._`,

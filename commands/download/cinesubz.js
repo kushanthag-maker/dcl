@@ -1,348 +1,387 @@
+/**
+ * DARK QUEEN V2 — CineSubz Movie & TV Series Downloader
+ * Ultra-Aesthetic UI & Clean Direct Download Links
+ * Usage:
+ *   .cinesubz <movie name>
+ *   .cinesubz <cinesubz url>
+ *   .cinesubz <number> (pick movie / pick direct link)
+ */
+
 const axios = require('axios');
 const config = require('../../config');
 
 const API_KEY = 'chama_api_4e25afe0832134994a30b44dd0e9d6d8';
 const SEARCH_API = 'https://api.chamindu.site/api/v1/movies/cinesubz/search';
-const DL_API     = 'https://api.chamindu.site/api/v1/movies/cinesubz/infodl';
-const BOT_LINK   = 'https://dark-queen.vercel.app/';
-const MAX_SEND_BYTES = 2 * 1024 * 1024 * 1024; // 2GB WA document limit
-
-const pending = new Map(); // from -> state {mode, results/info/episodes, ...}
-const BAR = '━'.repeat(28);
+const DL_API = 'https://api.chamindu.site/api/v1/movies/cinesubz/infodl';
+const BRAND_FOOTER = '𓆩👑 DARK QUEEN V2 · CINESUBZ CINEMA 👑𓆪';
 const TTL = 3 * 60 * 1000;
 
-/* ---------------- helpers ---------------- */
-function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
-function footer() {
-  return `│\n╰${BAR}╯\n🖤 *Dark Queen*  •  ${BOT_LINK}`;
-}
-function box(title, lines) {
-  return `╭${BAR}╮\n${title}\n│\n${lines.join('\n')}\n${footer()}`;
-}
-function clean(str, len = 55) {
-  const s = String(str || 'N/A')
+const pending = new Map(); // from -> state { mode, results, info }
+
+function cleanTitle(str, max = 50) {
+  let s = String(str || 'N/A')
     .replace(/\s*[│|]\s*සිංහල.*$/i, '')
-    .replace(/\s*[│|].*$/, '')   // cut " | සිංහල උපසිරැසි සමඟ"
+    .replace(/\s*[│|].*$/, '')
+    .replace(/\s*\(\d{4}\).*$/, '')
     .trim();
-  return s.length > len ? s.slice(0, len) + '…' : s;
+  return s.length > max ? s.slice(0, max) + '…' : s;
 }
-function genreList(arr) {
-  return (arr || []).filter((x) => !/^[.#]/.test(x)).join(', ') || 'N/A';
+
+function filterDirectLinks(downloads) {
+  if (!Array.isArray(downloads) || !downloads.length) return [];
+  // Prioritize direct high-speed server links, then mega/gdrive, then others
+  const direct = downloads.filter((d) =>
+    /direct|high-speed|server|gdrive|mega|cloud|stream/i.test(d.quality || '') ||
+    !/telegram|tg/i.test(d.quality || '')
+  );
+  return direct.length ? direct : downloads;
+}
+
+function formatQualityLabel(q) {
+  return String(q || 'Download')
+    .replace(/\[.*?\]/g, '')
+    .replace(/Direct|High-Speed|Server/gi, '')
+    .trim() || 'Direct Video';
 }
 
 /* ---------------- API ---------------- */
 async function fetchSearch(query) {
-  const res = await axios.get(SEARCH_API, { params: { q: query, api_key: API_KEY }, timeout: 45000, validateStatus: () => true });
-  if (res.status !== 200 || !res.data || res.data.status !== true)
-    throw new Error((res.data && res.data.message) || `Search HTTP ${res.status}`);
+  const res = await axios.get(SEARCH_API, {
+    params: { q: query, api_key: API_KEY },
+    timeout: 30000,
+    validateStatus: () => true,
+  });
+  if (res.status !== 200 || !res.data || res.data.status !== true) {
+    throw new Error((res.data && res.data.message) || `Search error (HTTP ${res.status})`);
+  }
   return Array.isArray(res.data.data) ? res.data.data : [];
 }
 
 async function fetchInfo(url) {
-  const res = await axios.get(DL_API, { params: { q: url, api_key: API_KEY }, timeout: 60000, validateStatus: () => true });
-  if (res.status !== 200 || !res.data || res.data.status !== true || !res.data.data)
-    throw new Error((res.data && res.data.message) || `Info HTTP ${res.status}`);
+  const res = await axios.get(DL_API, {
+    params: { q: url, api_key: API_KEY },
+    timeout: 45000,
+    validateStatus: () => true,
+  });
+  if (res.status !== 200 || !res.data || res.data.status !== true || !res.data.data) {
+    throw new Error((res.data && res.data.message) || `Info error (HTTP ${res.status})`);
+  }
   const data = res.data.data;
   const isTv = !!res.data.is_tv;
   const isEp = !!res.data.is_episode;
-  const dl = Array.isArray(data.downloads) ? data.downloads : [];
+  const rawDl = Array.isArray(data.downloads) ? data.downloads : [];
+  const dl = filterDirectLinks(rawDl);
   const ep = Array.isArray(data.episodes) ? data.episodes : [];
   return { data, isTv, isEp, dl, ep, pageUrl: url };
 }
 
-/* ---------------- detail card (movie info) ---------------- */
-function detailCardInfo(info) {
-  const d = info.data;
-  const cast = (d.cast || []).slice(0, 6).map((c) => `│  👤 *${c.name}* — ${c.role}`).join('\n');
-  const dlTxt = info.dl.length
-    ? info.dl.map((x, i) => `│  *${i + 1}.* ${clean(x.quality, 30)}\n│     📦 ${x.size || 'N/A'} · 🌐 ${x.language || ''}`).join('\n')
-    : '│  ❌ Download links නැහැ';
-  return box('│  🎬 *CINESUBZ — MOVIE*', [
-    `│  ✨ *${clean(d.title, 40)}*`,
-    `│`,
-    `│  ⭐ *${d.rating || 'N/A'}*  🎥 *${d.quality || 'N/A'}*  🗣️ *${d.language || 'N/A'}*`,
-    `│  📅 *${d.year || 'N/A'}*  ⏱️ *${d.duration || 'N/A'}*`,
-    `│  🏷️ ${genreList(d.genres)}`,
-    `│`,
-    `│  📄 *Full details doc එකක් ලෙස එව්වා 👇*`,
-    `│`,
-    `│  ⬇️ *DOWNLOAD LINKS*`,
-    dlTxt,
-    `│`,
-    `│  👇 *${config.prefix || '.'}cinesubz <number>* → stream/download`,
-  ]);
-}
+/* ---------------- UI Builders ---------------- */
+function buildSearchCard(query, results) {
+  const prefix = config.prefix || '.';
+  let text =
+    '╔════════════════════════════╗\n' +
+    '  🎬 𝓒𝓘𝓝𝓔𝓢𝓤𝓑𝓩 · 𝓜𝓞𝓥𝓘𝓔 𝓢𝓔𝓐𝓡𝓒𝓗 🎬\n' +
+    '  🇱🇰 සිංහල උපසිරැසි සමඟ\n' +
+    '╚════════════════════════════╝\n\n' +
+    `│ 🔍 Query   : *${query.slice(0, 30)}*\n` +
+    `│ 📦 Results : *${results.length} Titles Found*\n` +
+    '╰─────────────────────────•\n\n' +
+    '╭─〔 📜 𝐒𝐄𝐋𝐄𝐂𝐓 𝐘𝐎𝐔𝐑 𝐌𝐎𝐕𝐈𝐄 〕─•\n';
 
-function detailCardEpisodes(info) {
-  const eps = info.ep;
-  const show = clean(info.data.title, 45);
-  const lines = [
-    `│  📺 *${show}*`,
-    `│`,
-    `│  🔢 *Episodes:* ${eps.length}`,
-    `│`,
-  ];
-  eps.slice(0, 40).forEach((e, i) => {
-    const nm = String(e.episode_name || `Episode ${i + 1}`).slice(0, 38);
-    lines.push(`│  *${i + 1}.* ${nm}`);
+  const numEmojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '1️⃣1️⃣', '1️⃣2️⃣', '1️⃣3️⃣', '1️⃣4️⃣', '1️⃣5️⃣'];
+  results.slice(0, 12).forEach((r, idx) => {
+    const isSeries = r.type === 'tvshows';
+    const badge = isSeries ? '📺 Series' : '🎥 Movie';
+    const qual = r.quality && r.quality !== 'N/A' ? ` · ${r.quality}` : '';
+    const num = numEmojis[idx] || `[${idx + 1}]`;
+    text += `│ ${num} *${cleanTitle(r.title, 36)}*\n`;
+    text += `│    └ ${badge}${qual}\n`;
   });
-  lines.push(`│`, `│  👇 *${config.prefix || '.'}cinesubz <number>* → episode DL links`);
-  return box('│  🎬 *CINESUBZ — TV SERIES*', lines);
+
+  text +=
+    '╰─────────────────────────•\n\n' +
+    `💡 *To view details & direct links:*\n` +
+    `Reply with movie number (e.g. *${prefix}cinesubz 1* or just *1*)\n\n` +
+    `> ${BRAND_FOOTER}`;
+
+  return text;
 }
 
-function detailCardEpQuality(info, epIdx) {
-  const ep = info.ep[epIdx];
+function buildMovieDetailsCard(info) {
   const d = info.data;
-  const dlTxt = info.dl.length
-    ? info.dl.map((x, i) => `│  *${i + 1}.* ${clean(x.quality, 30)}\n│     📦 ${x.size || 'N/A'} · 🌐 ${x.language || ''}`).join('\n')
-    : '│  ❌ Download links නැහැ';
-  return box('│  🎬 *EPISODE DOWNLOAD*', [
-    `│  ✨ *${clean(ep.episode_name || d.title, 42)}*`,
-    `│`,
-    `│  ⬇️ *DOWNLOAD LINKS*`,
-    dlTxt,
-    `│`,
-    `│  👇 *${config.prefix || '.'}cinesubz <number>*`,
-  ]);
-}
+  const prefix = config.prefix || '.';
+  const directLinks = info.dl;
 
-/* ---------------- info document (story + all links) ---------------- */
-function buildInfoDoc(info) {
-  const d = info.data;
-  const cast = (d.cast || []).map((c) => `• ${c.name} — ${c.role}`).join('\n') || 'N/A';
-  const dls = info.dl;
-  let t = '';
-  t += `🎬 *CINESUBZ MOVIE DETAILS*\n═${BAR}═\n\n`;
-  t += `🖼️ *Poster:* ${d.image || 'N/A'}\n\n`;
-  t += `🎬 *Title:* ${d.title || 'N/A'}\n`;
-  t += `⭐ *Rating:* ${d.rating || 'N/A'}\n`;
-  t += `🎥 *Quality:* ${d.quality || 'N/A'}\n`;
-  t += `📽️ *IMDb:* ${d.imdb || 'N/A'}\n`;
-  t += `🎬 *Director:* ${d.director || d.directors || 'N/A'}\n`;
-  t += `🗣️ *Language:* ${d.language || 'N/A'}\n`;
-  t += `📅 *Year:* ${d.year || 'N/A'}  ⏱️ *Duration:* ${d.duration || 'N/A'}\n`;
-  t += `🌍 *Country:* ${d.country || 'N/A'}\n`;
-  t += `🏷️ *Genres:* ${genreList(d.genres)}\n`;
-  t += `🔗 *Page:* ${info.pageUrl}\n\n`;
-  if (d.story) t += `📖 *Story:*\n${String(d.story).slice(0, 2000)}\n\n`;
-  if (cast !== 'N/A') t += `🎭 *Cast:*\n${cast}\n\n`;
-  if (d.trailer) t += `▶️ *Trailer:* ${d.trailer}\n\n`;
-  t += `⬇️ *DOWNLOAD LINKS:*\n`;
-  if (dls.length) {
-    dls.forEach((x, i) => { t += `${i + 1}. [${x.quality}] (${x.size || '?'}) ${x.language || ''}\n   ${x.link}\n`; });
-  } else if (info.ep.length) {
-    t += `(TV Series — පළමුව කථාංගයක් තෝරන්න)\n`;
-    info.ep.slice(0, 30).forEach((e, i) => { t += `${i + 1}. ${e.episode_name}\n   ${e.episode_url}\n`; });
+  let text =
+    '╔════════════════════════════╗\n' +
+    '  🎬 𝓒𝓘𝓝𝓔𝓢𝓤𝓑𝓩 · 𝓜𝓞𝓥𝓘𝓔 𝓘𝓝𝓕𝓞 🎬\n' +
+    '  🇱🇰 සිංහල උපසිරැසි සමඟ චිත්‍රපටය\n' +
+    '╚════════════════════════════╝\n\n' +
+    `│ ✨ *Title*    : *${cleanTitle(d.title, 42)}*\n` +
+    `│ ⭐ *IMDb*     : ${d.rating || 'N/A'} / 10\n` +
+    `│ 📅 *Year*     : ${d.year || 'N/A'}\n` +
+    `│ ⏱️ *Duration* : ${d.duration || 'N/A'}\n` +
+    `│ 🎥 *Quality*  : ${d.quality || 'HD'}\n` +
+    `│ 🗣️ *Language* : ${d.language || 'English / Sinhala'}\n` +
+    `│ 🏷️ *Genres*   : ${(d.genres || []).filter((g) => !/^[.#]/.test(g)).join(', ') || 'Action'}\n` +
+    '╰─────────────────────────•\n\n';
+
+  if (d.story) {
+    const shortStory = String(d.story).trim().slice(0, 220);
+    text +=
+      '╭─〔 📖 𝐒𝐘𝐍𝐎𝐏𝐒𝐈𝐒 〕─•\n' +
+      `│ _${shortStory}${shortStory.length >= 220 ? '...' : ''}_\n` +
+      '╰─────────────────────────•\n\n';
+  }
+
+  text += '╭─〔 ⬇️ 𝐃𝐈𝐑𝐄𝐂𝐓 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃 𝐋𝐈𝐍𝐊𝐒 〕─•\n';
+
+  if (!directLinks.length) {
+    text += '│ ❌ No direct download links currently available.\n';
   } else {
-    t += `N/A\n`;
-  }
-  t += `\n🖤 Dark Queen • ${BOT_LINK}\n`;
-  return t;
-}
-
-/* ---------------- sending ---------------- */
-function fileName(title) {
-  return String(title || 'Cinesubz')
-    .replace(/[^\w\u0d80-\u0dff\- ]+/g, '')
-    .replace(/ +/g, '_').slice(0, 60) + '.txt';
-}
-
-async function sendMovieDetails(sock, from, msg, info) {
-  // poster image + caption card
-  if (/^https?:\/\//i.test(info.data.image || '')) {
-    await sock.sendMessage(from, { image: { url: info.data.image }, caption: detailCardInfo(info) }, { quoted: msg }).catch(() => {});
-  }
-  // full detail document
-  const doc = Buffer.from(buildInfoDoc(info), 'utf8');
-  await sock.sendMessage(from, {
-    document: doc,
-    mimetype: 'text/plain',
-    fileName: fileName(info.data.title),
-    caption: `🎬 *Movie Details* 📄\n${clean(info.data.title, 55)}\n🖤 ${BOT_LINK}`,
-  }, { quoted: msg }).catch(() => {});
-}
-
-async function sendEpisodesList(sock, from, msg, info) {
-  await sock.sendMessage(from, { text: detailCardEpisodes(info) }, { quoted: msg }).catch(() => {});
-}
-
-async function sendEpQuality(sock, from, msg, info, epIdx) {
-  // show poster if series has one, with quality caption
-  if (/^https?:\/\//i.test(info.data.image || '')) {
-    await sock.sendMessage(from, { image: { url: info.data.image }, caption: detailCardEpQuality(info, epIdx) }, { quoted: msg }).catch(() => {});
-  } else {
-    await sock.sendMessage(from, { text: detailCardEpQuality(info, epIdx) }, { quoted: msg }).catch(() => {});
-  }
-}
-
-/* ---------------- stream / buffer upload ---------------- */
-async function streamQuality(sock, from, msg, title, dl) {
-  const base = clean(title, 55).replace(/[^\w\u0d80-\u0dff\- ]+/g, '').trim() || 'Cinesubz_movie';
-
-  // Stream via URL (ZERO RAM buffer)
-  try {
-    const sent = await sock.sendMessage(from, {
-      document: { url: dl.link },
-      mimetype: 'video/mp4',
-      fileName: `${base}_${clean(dl.quality, 25).replace(/[^\w\- ]+/g, '').trim()}.mp4`,
-      caption: `🎬 ${clean(title, 55)}\n🎥 ${dl.quality} · 📦 ${dl.size || 'N/A'}\n🖤 ${BOT_LINK}`,
-    }, { quoted: msg });
-    if (sent) return;
-    throw new Error('stream-empty');
-  } catch (e1) {
-    console.error('[Cinesubz] URL stream fail:', e1.message);
+    directLinks.slice(0, 6).forEach((item, i) => {
+      const q = formatQualityLabel(item.quality);
+      const sz = item.size ? ` (${item.size})` : '';
+      text += `│ ${i + 1}️⃣ *${q}*${sz}\n`;
+      text += `│    🔗 ${item.link}\n`;
+      if (i < Math.min(directLinks.length, 6) - 1) text += '│\n';
+    });
   }
 
-  // Fallback buffer (small files only)
-  const st = await sock.sendMessage(from, { text: '🔄 *Buffer download fallback...*' }, { quoted: msg }).catch(() => null);
-  let buf = null;
-  try {
-    const b = await axios.get(dl.link, { responseType: 'arraybuffer', timeout: 120000, maxContentLength: MAX_SEND_BYTES });
-    buf = b.data;
-  } catch (e) { console.error('[Cinesubz] buffer fail:', e.message); }
-  if (st) await sock.sendMessage(from, { delete: st.key }).catch(() => {});
-  if (!buf || buf.length < 10000) {
-    return sock.sendMessage(from, { text: `❌ Direct send fail.\n💡 *${dl.link}*\n\nඔයාටම link එකෙන් download කරන්න පුළුවන් ✅` }, { quoted: msg }).catch(() => {});
-  }
-  await sock.sendMessage(from, {
-    document: buf, mimetype: 'video/mp4', fileName: `${base}.mp4`,
-    caption: `🎬 ${clean(title, 55)}\n🎥 ${dl.quality} · 📦 ${(buf.length / 1048576).toFixed(1)} MB\n🖤 ${BOT_LINK}`,
-  }, { quoted: msg }).catch(() => {});
+  text +=
+    '╰─────────────────────────•\n\n' +
+    `🚀 *Instant Download:* Tap any link above to download at full speed!\n` +
+    `📲 Or reply with number (e.g. *${prefix}cinesubz 1*) for direct download card.\n\n` +
+    `> ${BRAND_FOOTER}`;
+
+  return text;
 }
 
-/* ---------------- main detail fetch (auto TV/movie) ---------------- */
-async function openMovie(sock, from, msg, link, mode) {
-  const loading = await sock.sendMessage(from, { text: '⏳ *Details ලබාගන්නවා...*' }, { quoted: msg }).catch(() => null);
-  try {
-    const info = await fetchInfo(link);
-    if (loading) await sock.sendMessage(from, { delete: loading.key }).catch(() => {});
-
-    if (info.isTv && info.ep.length && !info.isEp) {
-      // TV series main page → show episodes, wait for episode pick
-      pending.set(from, { mode: 'episodes', info, timeout: setTimeout(() => pending.delete(from), TTL) });
-      return sendEpisodesList(sock, from, msg, info);
-    }
-    // Movie / episode page → download menu
-    pending.set(from, { mode: 'quality', info, timeout: setTimeout(() => pending.delete(from), TTL) });
-    return sendMovieDetails(sock, from, msg, info);
-  } catch (err) {
-    if (loading) await sock.sendMessage(from, { text: `❌ \`${err.message}\``, edit: loading.key }).catch(() => {});
-  }
+function buildDirectLinkCard(title, dlItem) {
+  const q = formatQualityLabel(dlItem.quality);
+  return (
+    '╔════════════════════════════╗\n' +
+    '  🚀 𝓒𝓘𝓝𝓔𝓢𝓤𝓑𝓩 · 𝓓𝓘𝓡𝓔𝓒𝓣 𝓛𝓘𝓝𝓚 🚀\n' +
+    '╚════════════════════════════╝\n\n' +
+    `│ 🎬 *Title*    : *${cleanTitle(title, 40)}*\n` +
+    `│ 🎥 *Quality*  : *${q}*\n` +
+    `│ 📦 *Size*     : ${dlItem.size || 'High Quality'}\n` +
+    `│ 🇱🇰 *Subtitle* : සිංහල උපසිරැසි ඇතුළත් කර ඇත\n` +
+    '╰─────────────────────────•\n\n' +
+    '╭─〔 🔗 𝐃𝐈𝐑𝐄𝐂𝐓 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃 𝐔𝐑𝐋 〕─•\n' +
+    `│\n` +
+    `│ 👉 ${dlItem.link}\n` +
+    `│\n` +
+    '╰─────────────────────────•\n\n' +
+    '💡 *Download Tips:*\n' +
+    '• Tap the link above in Chrome, Opera, or ADM/IDM to download.\n' +
+    '• High-speed resume supported! No ads, no wait time.\n\n' +
+    `> ${BRAND_FOOTER}`
+  );
 }
 
-/* ---------------- command ---------------- */
+function buildEpisodesCard(info) {
+  const eps = info.ep;
+  const prefix = config.prefix || '.';
+  let text =
+    '╔════════════════════════════╗\n' +
+    '  📺 𝓒𝓘𝓝𝓔𝓢𝓤𝓑𝓩 · 𝓣𝓥 𝓢𝓔𝓡𝓘𝓔𝓢 📺\n' +
+    '╚════════════════════════════╝\n\n' +
+    `│ 📺 *Show*     : *${cleanTitle(info.data.title, 40)}*\n` +
+    `│ 🔢 *Episodes* : ${eps.length} Episodes Available\n` +
+    '╰─────────────────────────•\n\n' +
+    '╭─〔 🎬 𝐒𝐄𝐋𝐄𝐂𝐓 𝐄𝐏𝐈𝐒𝐎𝐃𝐄 〕─•\n';
+
+  eps.slice(0, 25).forEach((e, idx) => {
+    const epName = cleanTitle(e.episode_name || `Episode ${idx + 1}`, 36);
+    text += `│ *${idx + 1}.* ${epName}\n`;
+  });
+
+  text +=
+    '╰─────────────────────────•\n\n' +
+    `👉 Reply with episode number (e.g. *${prefix}cinesubz 1*) for direct download links!\n\n` +
+    `> ${BRAND_FOOTER}`;
+
+  return text;
+}
+
 module.exports = {
   name: 'cinesubz',
-  aliases: ['csub', 'sinhalasubz'],
-  description: 'Search & download CineSubz (සිංහල සබ්ටයිටල්) movies & TV series',
+  aliases: ['csub', 'sinhalasubz', 'movie'],
+  description: 'Search & get direct download links for CineSubz Sinhala Sub movies',
   category: 'download',
 
   async execute({ sock, msg, from, args }) {
     const prefix = config.prefix || '.';
 
-    // ===== number selection =====
+    // Number selection handler (e.g. .cinesubz 1 or 1)
     if (args.length === 1 && /^\d+$/.test(args[0])) {
       const idx = parseInt(args[0], 10) - 1;
       const state = pending.get(from);
 
-      // movie/episode download quality pick
-      if (state?.mode === 'quality') {
-        if (idx < 0 || idx >= state.info.dl.length)
-          return sock.sendMessage(from, { text: `❌ *1*–*${state.info.dl.length}* අතර number එකක් දෙන්න.` }, { quoted: msg });
-        if (state.timeout) clearTimeout(state.timeout);
-        pending.delete(from);
-        const dl = state.info.dl[idx];
-        return streamQuality(sock, from, msg, state.info.data.title, dl);
-      }
-
-      // tv series: episodes main list pick
-      if (state?.mode === 'episodes') {
-        if (idx < 0 || idx >= state.info.ep.length)
-          return sock.sendMessage(from, { text: `❌ *1*–*${state.info.ep.length}* අතර episode number එකක් දෙන්න.` }, { quoted: msg });
-        const ep = state.info.ep[idx];
-        // fetch that episode's downloads
-        const load = await sock.sendMessage(from, { text: `⏳ *Episode ${idx + 1} details...*` }, { quoted: msg }).catch(() => null);
-        try {
-          const epInfo = await fetchInfo(ep.episode_url);
-          if (load) await sock.sendMessage(from, { delete: load.key }).catch(() => {});
-          if (state.timeout) clearTimeout(state.timeout);
-          pending.set(from, { mode: 'quality', info: epInfo, timeout: setTimeout(() => pending.delete(from), TTL) });
-          return sendEpQuality(sock, from, msg, epInfo, 0);
-        } catch (err) {
-          if (load) await sock.sendMessage(from, { text: `❌ \`${err.message}\``, edit: load.key }).catch(() => {});
-        }
-        return;
-      }
-
-      // search result pick
+      // Search results pick
       if (state?.mode === 'search') {
-        if (idx < 0 || idx >= state.results.length)
-          return sock.sendMessage(from, { text: `❌ *1*–*${state.results.length}* අතර number එකක් දෙන්න.` }, { quoted: msg });
+        if (idx < 0 || idx >= state.results.length) {
+          return sock.sendMessage(
+            from,
+            { text: `❌ Please enter a number between *1* and *${state.results.length}*.` },
+            { quoted: msg }
+          );
+        }
         if (state.timeout) clearTimeout(state.timeout);
         const item = state.results[idx];
-        return openMovie(sock, from, msg, item.link, item.type);
+
+        const loadMsg = await sock.sendMessage(from, { text: '⏳ *Loading CineSubz details...*' }, { quoted: msg }).catch(() => null);
+        try {
+          const info = await fetchInfo(item.link);
+          if (loadMsg) await sock.sendMessage(from, { delete: loadMsg.key }).catch(() => {});
+
+          if (info.isTv && info.ep.length && !info.isEp) {
+            pending.set(from, { mode: 'episodes', info, timeout: setTimeout(() => pending.delete(from), TTL) });
+            const epText = buildEpisodesCard(info);
+            if (info.data.image && /^https?:\/\//i.test(info.data.image)) {
+              return await sock.sendMessage(from, { image: { url: info.data.image }, caption: epText }, { quoted: msg });
+            }
+            return await sock.sendMessage(from, { text: epText }, { quoted: msg });
+          }
+
+          pending.set(from, { mode: 'quality', info, timeout: setTimeout(() => pending.delete(from), TTL) });
+          const cardText = buildMovieDetailsCard(info);
+          if (info.data.image && /^https?:\/\//i.test(info.data.image)) {
+            return await sock.sendMessage(from, { image: { url: info.data.image }, caption: cardText }, { quoted: msg });
+          }
+          return await sock.sendMessage(from, { text: cardText }, { quoted: msg });
+        } catch (err) {
+          if (loadMsg) await sock.sendMessage(from, { text: `❌ ${err.message}`, edit: loadMsg.key }).catch(() => {});
+          return;
+        }
       }
 
-      return sock.sendMessage(from, { text: `❌ Active session නැහැ.\n💡 \`${prefix}cinesubz <movie name>\`` }, { quoted: msg });
+      // Quality / Direct link selection pick
+      if (state?.mode === 'quality') {
+        if (idx < 0 || idx >= state.info.dl.length) {
+          return sock.sendMessage(
+            from,
+            { text: `❌ Please enter a link number between *1* and *${state.info.dl.length}*.` },
+            { quoted: msg }
+          );
+        }
+        if (state.timeout) clearTimeout(state.timeout);
+        const dlItem = state.info.dl[idx];
+        const linkCard = buildDirectLinkCard(state.info.data.title, dlItem);
+
+        if (state.info.data.image && /^https?:\/\//i.test(state.info.data.image)) {
+          return await sock.sendMessage(from, { image: { url: state.info.data.image }, caption: linkCard }, { quoted: msg });
+        }
+        return await sock.sendMessage(from, { text: linkCard }, { quoted: msg });
+      }
+
+      // TV series episode pick
+      if (state?.mode === 'episodes') {
+        if (idx < 0 || idx >= state.info.ep.length) {
+          return sock.sendMessage(
+            from,
+            { text: `❌ Please enter an episode number between *1* and *${state.info.ep.length}*.` },
+            { quoted: msg }
+          );
+        }
+        const ep = state.info.ep[idx];
+        const loadMsg = await sock.sendMessage(from, { text: `⏳ *Loading Episode ${idx + 1} links...*` }, { quoted: msg }).catch(() => null);
+        try {
+          const epInfo = await fetchInfo(ep.episode_url);
+          if (loadMsg) await sock.sendMessage(from, { delete: loadMsg.key }).catch(() => {});
+          if (state.timeout) clearTimeout(state.timeout);
+
+          pending.set(from, { mode: 'quality', info: epInfo, timeout: setTimeout(() => pending.delete(from), TTL) });
+          const cardText = buildMovieDetailsCard(epInfo);
+          if (epInfo.data.image && /^https?:\/\//i.test(epInfo.data.image)) {
+            return await sock.sendMessage(from, { image: { url: epInfo.data.image }, caption: cardText }, { quoted: msg });
+          }
+          return await sock.sendMessage(from, { text: cardText }, { quoted: msg });
+        } catch (err) {
+          if (loadMsg) await sock.sendMessage(from, { text: `❌ ${err.message}`, edit: loadMsg.key }).catch(() => {});
+          return;
+        }
+      }
+
+      return sock.sendMessage(
+        from,
+        { text: `❌ No active movie session.\n💡 Search first: \`${prefix}cinesubz <movie name>\`` },
+        { quoted: msg }
+      );
     }
 
-    // ===== help =====
+    // Help banner if no arguments
     if (!args.length) {
-      return sock.sendMessage(from, {
-        text: box('│  🎬 *CINESUBZ*  ·  සිංහල සබ්', [
-          `│  ${prefix}cinesubz <movie name>`,
-          `│  ${prefix}cinesubz <cinesubz link>`,
-          `│  ${prefix}cinesubz <number>   ← pick result`,
-          `│`,
-          `│  ✨ Example:`,
-          `│  ${prefix}cinesubz avatar`,
-          `│  ${prefix}cinesubz 1`,
-          `│  ${prefix}cinesubz 2`,
-          `│`,
-          `│  📺 TV series → episode pick`,
-          `│  ⏳ session 3 min`,
-        ]),
-      }, { quoted: msg });
+      const help =
+        '╔════════════════════════════╗\n' +
+        '  🎬 𝓒𝓘𝓝𝓔𝓢𝓤𝓑𝓩 · 𝓜𝓞𝓥𝓘𝓔 𝓗𝓤𝓑 🎬\n' +
+        '  🇱🇰 සිංහල උපසිරැසි සමඟ චිත්‍රපට\n' +
+        '╚════════════════════════════╝\n\n' +
+        '╭─〔 💡 𝐂𝐎𝐌𝐌𝐀𝐍𝐃 𝐔𝐒𝐀𝐆𝐄 〕─•\n' +
+        `│ 🔎 *Search Movie* :\n` +
+        `│    ${prefix}cinesubz <movie name>\n` +
+        `│    _Example:_ ${prefix}cinesubz Avatar\n` +
+        `│\n` +
+        `│ 🔗 *Direct URL* :\n` +
+        `│    ${prefix}cinesubz <cinesubz url>\n` +
+        `│\n` +
+        `│ 🔢 *Select Result / Link* :\n` +
+        `│    ${prefix}cinesubz <number>\n` +
+        '╰─────────────────────────•\n\n' +
+        '✨ *Features:*\n' +
+        '• Fast Direct High-Speed Download Links\n' +
+        '• 1080p, 720p, 480p Qualities\n' +
+        '• Full Sinhala Subtitles\n' +
+        '• Clean UI without spam\n\n' +
+        `> ${BRAND_FOOTER}`;
+
+      return sock.sendMessage(from, { text: help }, { quoted: msg });
     }
 
     const query = args.join(' ').trim();
 
-    // direct link
-    const m = query.match(/https?:\/\/[^\s]+/i);
-    if (m) return openMovie(sock, from, msg, m[0].replace(/[)\]>,.]+$/, ''), 'direct');
+    // Direct CineSubz URL input
+    const matchUrl = query.match(/https?:\/\/(?:www\.)?cinesubz\.[a-z]+\/[^\s]+/i);
+    if (matchUrl) {
+      const loadMsg = await sock.sendMessage(from, { text: '⏳ *Loading movie details from link...*' }, { quoted: msg }).catch(() => null);
+      try {
+        const info = await fetchInfo(matchUrl[0]);
+        if (loadMsg) await sock.sendMessage(from, { delete: loadMsg.key }).catch(() => {});
+        pending.set(from, { mode: 'quality', info, timeout: setTimeout(() => pending.delete(from), TTL) });
+        const cardText = buildMovieDetailsCard(info);
+        if (info.data.image && /^https?:\/\//i.test(info.data.image)) {
+          return await sock.sendMessage(from, { image: { url: info.data.image }, caption: cardText }, { quoted: msg });
+        }
+        return await sock.sendMessage(from, { text: cardText }, { quoted: msg });
+      } catch (err) {
+        if (loadMsg) await sock.sendMessage(from, { text: `❌ ${err.message}`, edit: loadMsg.key }).catch(() => {});
+        return;
+      }
+    }
 
-    const loading = await sock.sendMessage(from, { text: '🔍 *CineSubz search කරමින්...*' }, { quoted: msg }).catch(() => null);
+    // Search query
+    const loadMsg = await sock.sendMessage(from, { text: '🔍 *Searching CineSubz Cinema...*' }, { quoted: msg }).catch(() => null);
     try {
       const results = await fetchSearch(query);
       if (!results.length) {
-        return sock.sendMessage(from, { text: '❌ Results හමු නොවීය.', edit: loading.key }).catch(() => {});
+        if (loadMsg) await sock.sendMessage(from, { text: `❌ No results found for "*${query}*"`, edit: loadMsg.key }).catch(() => {});
+        return;
       }
 
       pending.set(from, { mode: 'search', results, timeout: setTimeout(() => pending.delete(from), TTL) });
+      const searchCard = buildSearchCard(query, results);
 
-      let lines = [`│  🔎 *"${query.slice(0, 28)}"*  ·  📦 ${results.length}`, `│`];
-      results.slice(0, 15).forEach((r, i) => {
-        const isSeries = r.type === 'tvshows';
-        const tag = isSeries ? '📺 Series' : '🎥 Movie';
-        const q = r.quality && r.quality !== 'N/A' ? ` · ${r.quality}` : '';
-        lines.push(`│  *${i + 1}.* ${clean(r.title, 42)}`);
-        lines.push(`│     ${tag}${q}`);
-      });
-      lines.push(`│`, `│  👇 *${prefix}cinesubz <number>*  තෝරන්න`);
-      const list = box('│  🎬 *CINESUBZ — RESULTS*', lines);
+      if (loadMsg) await sock.sendMessage(from, { delete: loadMsg.key }).catch(() => {});
 
-      await sock.sendMessage(from, { delete: loading.key }).catch(() => {});
-
-      // show poster of first result with caption
       if (results[0].image && /^https?:\/\//i.test(results[0].image)) {
-        await sock.sendMessage(from, { image: { url: results[0].image }, caption: list }, { quoted: msg })
-          .catch(() => sock.sendMessage(from, { text: list }, { quoted: msg }).catch(() => {}));
+        await sock.sendMessage(from, { image: { url: results[0].image }, caption: searchCard }, { quoted: msg })
+          .catch(() => sock.sendMessage(from, { text: searchCard }, { quoted: msg }));
       } else {
-        await sock.sendMessage(from, { text: list }, { quoted: msg }).catch(() => {});
+        await sock.sendMessage(from, { text: searchCard }, { quoted: msg });
       }
     } catch (err) {
-      console.error('[Cinesubz] search:', err.message);
-      if (loading) await sock.sendMessage(from, { text: `❌ \`${err.message}\``, edit: loading.key }).catch(() => {});
+      if (loadMsg) await sock.sendMessage(from, { text: `❌ Error: ${err.message}`, edit: loadMsg.key }).catch(() => {});
     }
   },
 };
