@@ -2,6 +2,7 @@ const config = require('../config');
 const logger = require('../lib/logger');
 const { getCommand } = require('../lib/commandHandler');
 const { isPanelReply } = require('../lib/settingsPanelStore');
+const { getSettings } = require('../lib/botSettings');
 
 const rateMap = new Map();
 
@@ -211,6 +212,52 @@ async function handleMessage(sock, msg, sessionId) {
     const senderNumber = (sender?.split('@')[0] || '').split(':')[0];
 
     let body = extractBody(msg);
+
+    // AntiLink Protection Check in Groups
+    const currentSettings = getSettings(sessionId);
+    if (isGroup && currentSettings.antiLink && !isFromMe) {
+      const waLinkRegex = /(chat\.whatsapp\.com\/[0-9A-Za-z]{18,28}|whatsapp\.com\/channel\/[0-9A-Za-z]{18,32}|wa\.me\/settings)/i;
+      const rawText = (
+        msg.message?.conversation ||
+        msg.message?.extendedTextMessage?.text ||
+        msg.message?.imageMessage?.caption ||
+        msg.message?.videoMessage?.caption ||
+        body ||
+        ''
+      );
+      if (waLinkRegex.test(rawText)) {
+        try {
+          const groupMeta = await sock.groupMetadata(from);
+          const botNum = (sock.user?.id || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+          const botPart = groupMeta.participants.find((p) => p.id.replace(/[^0-9]/g, '') === botNum);
+          const isBotAdmin = botPart?.admin === 'admin' || botPart?.admin === 'superadmin';
+
+          const senderNum = senderNumber.replace(/[^0-9]/g, '');
+          const senderPart = groupMeta.participants.find((p) => p.id.replace(/[^0-9]/g, '') === senderNum);
+          const ownerNum = (config.ownerNumber || '').replace(/[^0-9]/g, '');
+          const isSenderAdmin =
+            senderPart?.admin === 'admin' ||
+            senderPart?.admin === 'superadmin' ||
+            (ownerNum && senderNum === ownerNum);
+
+          if (!isSenderAdmin && isBotAdmin) {
+            try {
+              await sock.sendMessage(from, { delete: msg.key });
+            } catch (_) {}
+            try {
+              await sock.sendMessage(from, {
+                text: `⚠️ @${senderNumber} *Links are strictly forbidden in this group!* 🚫\n_Message deleted by AntiLink protection._`,
+                mentions: [sender],
+              });
+            } catch (_) {}
+            return;
+          }
+        } catch (err) {
+          logger.warn('AntiLink check error: ' + err.message);
+        }
+      }
+    }
+
     let commandName = '';
     let args = [];
 

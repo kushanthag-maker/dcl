@@ -1,5 +1,15 @@
 {
-  "sessions": {},
+  "sessions": {
+    "test": {
+      "botName": "Dark Queen",
+      "logo": "https://files.catbox.moe/yjyx4x.webp",
+      "statusSeen": false,
+      "antiDelete": false,
+      "antiLink": false,
+      "buttons": true,
+      "menuStyle": "royal"
+    }
+  },
   "phoneMap": {
     "94759008897": "bot_008897_2508",
     "4759008897": "bot_008897_2508",

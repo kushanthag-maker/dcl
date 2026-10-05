@@ -446,42 +446,48 @@ async function showMain(sock, msg, from, sessionId, requestedStyle) {
 
   const menuText = buildMenuText(prefix, sessionId, requestedStyle, userName);
 
-  // Categories list for interactive select button
-  const rows = [];
-  for (const meta of CATEGORY_META) {
-    const cmds = (getCommandsByCategory(meta.key) || [])
-      .map((c) => String(c.name || '').trim())
-      .filter(Boolean)
-      .sort();
-    if (!cmds.length) continue;
-    rows.push({
-      id: 'dqcat_' + meta.key,
-      title: `${meta.emoji} ${meta.title}`,
-      description: `${cmds.length} commands · ${meta.desc}`,
-    });
+  const settings = (() => { try { return getSettings(sessionId) || {}; } catch { return {}; } })();
+  const useButtons = settings.buttons !== false;
+
+  if (useButtons) {
+    // Categories list for interactive select button
+    const rows = [];
+    for (const meta of CATEGORY_META) {
+      const cmds = (getCommandsByCategory(meta.key) || [])
+        .map((c) => String(c.name || '').trim())
+        .filter(Boolean)
+        .sort();
+      if (!cmds.length) continue;
+      rows.push({
+        id: 'dqcat_' + meta.key,
+        title: `${meta.emoji} ${meta.title}`,
+        description: `${cmds.length} commands · ${meta.desc}`,
+      });
+    }
+
+    try {
+      return await sendMainMenu(sock, from, {
+        text: menuText,
+        footer: '𓆩🌸 DARK QUEEN V2 · ROYAL EDITION 🌸𓆪',
+        buttonText: '📂 Select Category',
+        rows,
+        imageUrl: logo,
+        quoted: msg,
+      });
+    } catch (btnErr) {
+      console.warn('Interactive menu fallback to regular image message:', btnErr.message);
+    }
   }
 
-  try {
-    await sendMainMenu(sock, from, {
-      text: menuText,
-      footer: '𓆩🌸 DARK QUEEN V2 · ROYAL EDITION 🌸𓆪',
-      buttonText: '📂 Select Category',
-      rows,
-      imageUrl: logo,
-      quoted: msg,
-    });
-  } catch (btnErr) {
-    console.warn('Interactive menu fallback to regular image message:', btnErr.message);
-    // Reliable fallback for non-native flow clients
-    await sock.sendMessage(
-      from,
-      {
-        image: { url: logo },
-        caption: menuText,
-      },
-      { quoted: msg }
-    );
-  }
+  // Fallback or when buttons disabled in .settings: send clean image message
+  await sock.sendMessage(
+    from,
+    {
+      image: { url: logo },
+      caption: menuText,
+    },
+    { quoted: msg }
+  );
 }
 
 async function showCategory(sock, msg, from, catKey, sessionId, requestedStyle) {
@@ -525,21 +531,23 @@ async function showStylePicker(sock, msg, from, sessionId) {
     '💡 Tap a button below or type:\n' +
     '`.menu --royal` | `.menu --cyber` | `.menu --rose` | `.menu --minimal`';
 
-  try {
-    await sendQuickReplies(sock, from, {
-      text,
-      footer: 'DARK QUEEN OFC · THEME ENGINE',
-      imageUrl: logo,
-      buttons: [
-        { id: 'dqtheme_royal', text: '👑 Royal Queen' },
-        { id: 'dqtheme_cyber', text: '⚡ Cyberpunk' },
-        { id: 'dqtheme_rose', text: '🌸 Pink Rose' },
-      ],
-      quoted: msg,
-    });
-  } catch (_) {
-    await sock.sendMessage(from, { text }, { quoted: msg });
+  const settings = (() => { try { return getSettings(sessionId) || {}; } catch { return {}; } })();
+  if (settings.buttons !== false) {
+    try {
+      return await sendQuickReplies(sock, from, {
+        text,
+        footer: 'DARK QUEEN OFC · THEME ENGINE',
+        imageUrl: logo,
+        buttons: [
+          { id: 'dqtheme_royal', text: '👑 Royal Queen' },
+          { id: 'dqtheme_cyber', text: '⚡ Cyberpunk' },
+          { id: 'dqtheme_rose', text: '🌸 Pink Rose' },
+        ],
+        quoted: msg,
+      });
+    } catch (_) {}
   }
+  await sock.sendMessage(from, { text }, { quoted: msg });
 }
 
 module.exports = {
