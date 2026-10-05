@@ -6,7 +6,9 @@ const config = {
   ownerNumber: (process.env.OWNER_NUMBER || '').replace(/[^0-9]/g, ''),
   sessionId: process.env.SESSION_ID || 'dcl-mini-main',
   mongoUri: process.env.MONGODB_URI || '',
-  port: 3000,
+  port: process.env.DYNO
+    ? parseInt(process.env.PORT || '5000', 10)
+    : (process.env.PORT && process.env.PORT !== '8080' ? parseInt(process.env.PORT, 10) : 3000),
   host: '0.0.0.0',
   timezone: process.env.TZ || 'Asia/Colombo',
 

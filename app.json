@@ -1,0 +1,46 @@
+{
+  "name": "DARK QUEEN V2",
+  "description": "Professional WhatsApp Multi-Device Bot with Multi-Theme Menu and MongoDB Storage",
+  "keywords": ["whatsapp", "bot", "baileys", "dark-queen", "multi-device"],
+  "env": {
+    "BOT_NAME": {
+      "description": "Display name of your WhatsApp Bot",
+      "value": "DARK QUEEN",
+      "required": false
+    },
+    "PREFIX": {
+      "description": "Bot command prefix (e.g. .)",
+      "value": ".",
+      "required": false
+    },
+    "OWNER_NUMBER": {
+      "description": "Your WhatsApp phone number with country code (e.g. 9477XXXXXXX)",
+      "required": false
+    },
+    "MONGODB_URI": {
+      "description": "MongoDB Atlas connection string (mongodb+srv://...)",
+      "required": true
+    },
+    "SESSION_ID": {
+      "description": "Unique session ID for your bot",
+      "value": "darkqueen-main",
+      "required": false
+    },
+    "TZ": {
+      "description": "Timezone for timestamps and greetings",
+      "value": "Asia/Colombo",
+      "required": false
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "eco"
+    }
+  }
+}
