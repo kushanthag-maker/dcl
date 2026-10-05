@@ -44,6 +44,16 @@ process.on('uncaughtException', (err) => {
 });
 
 process.on('unhandledRejection', (reason) => {
+  const msg = reason?.message || String(reason || '');
+  const isRateLimit =
+    msg.includes('rate-overlimit') ||
+    reason?.output?.payload?.message?.includes('internal server error') ||
+    reason?.output?.statusCode === 500;
+
+  if (isRateLimit) {
+    console.warn('[WA-THROTTLE] WhatsApp media upload rate limit throttled, handled gracefully');
+    return;
+  }
   console.error('[UNHANDLED REJECTION]', reason);
 });
 

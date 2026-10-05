@@ -395,8 +395,12 @@ async function sendMainMenu(sock, jid, { text, footer, buttonText, rows, imageUr
         { image: { url: imageUrl } },
         { upload: sock.waUploadToServer }
       );
-      header = { title: '👑 𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐', hasMediaAttachment: true, imageMessage: media.imageMessage };
-    } catch (_) {}
+      if (media && media.imageMessage) {
+        header = { title: '👑 𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐', hasMediaAttachment: true, imageMessage: media.imageMessage };
+      }
+    } catch (_) {
+      header = { title: '👑 𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐', hasMediaAttachment: false };
+    }
   }
 
   const full = generateWAMessageFromContent(
@@ -424,24 +428,6 @@ async function showMain(sock, msg, from, sessionId, requestedStyle) {
   const prefix = config.prefix || '.';
   const logo = getLogo(sessionId);
   const userName = getUserName(msg);
-
-  // Send video note or animated teaser
-  try {
-    await sock.sendMessage(
-      from,
-      { video: { url: MENU_VIDEO }, mimetype: 'video/mp4', ptv: true },
-      { quoted: msg }
-    );
-  } catch (e1) {
-    try {
-      await sock.sendMessage(
-        from,
-        { video: { url: MENU_VIDEO }, mimetype: 'video/mp4', gifPlayback: true },
-        { quoted: msg }
-      );
-    } catch (_) {}
-  }
-
   const menuText = buildMenuText(prefix, sessionId, requestedStyle, userName);
 
   const settings = (() => { try { return getSettings(sessionId) || {}; } catch { return {}; } })();
@@ -473,19 +459,28 @@ async function showMain(sock, msg, from, sessionId, requestedStyle) {
         quoted: msg,
       });
     } catch (btnErr) {
-      console.warn('Interactive menu fallback to regular image message:', btnErr.message);
+      // Fall through to regular message
     }
   }
 
-  // Fallback or when buttons disabled in .settings: send clean image message
-  await sock.sendMessage(
-    from,
-    {
-      image: { url: logo },
-      caption: menuText,
-    },
-    { quoted: msg }
-  );
+  // Send image caption with text fallback if rate-limited or upload fails
+  try {
+    return await sock.sendMessage(
+      from,
+      {
+        image: { url: logo },
+        caption: menuText,
+      },
+      { quoted: msg }
+    );
+  } catch (imgErr) {
+    // Graceful fallback to text prevents rate-overlimit crash
+    return await sock.sendMessage(
+      from,
+      { text: menuText },
+      { quoted: msg }
+    );
+  }
 }
 
 async function showCategory(sock, msg, from, catKey, sessionId, requestedStyle) {
@@ -601,7 +596,22 @@ module.exports = {
       // Full menu
       return await showMain(sock, msg, from, sid, requestedStyle);
     } catch (err) {
-      console.error('Menu Error:', err);
+      const isRateLimit =
+        err?.message?.includes('rate-overlimit') ||
+        err?.output?.payload?.message?.includes('internal server error') ||
+        err?.output?.statusCode === 500;
+
+      if (isRateLimit) {
+        console.warn('[Menu] WhatsApp rate-overlimit, falling back to clean text menu');
+        try {
+          const prefix = config.prefix || '.';
+          const menuText = buildMenuText(prefix, sessionId || 'default', null, getUserName(msg));
+          return await sock.sendMessage(from, { text: menuText }, { quoted: msg });
+        } catch (_) {}
+        return;
+      }
+
+      console.error('Menu Error:', err?.message || err);
       try {
         await sock.sendMessage(
           from,
