@@ -14,11 +14,12 @@ const DEFAULT_LOGO = 'https://files.catbox.moe/yjyx4x.webp';
 const DISPLAY_BOT_NAME = '𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐';
 
 const CATEGORY_META = [
-  { key: 'ai', title: '𝐀𝐈 & 𝐒𝐌𝐀𝐑𝐓', emoji: '🤖', order: 1, desc: 'GPT, Claude, Llama & Chat AI' },
-  { key: 'group', title: '𝐆𝐑𝐎𝐔𝐏 𝐓𝐎𝐎𝐋𝐒', emoji: '👥', order: 2, desc: 'Promote, Demote, Kick, Tag' },
-  { key: 'utility', title: '𝐔𝐓𝐈𝐋𝐈𝐓𝐈𝐄𝐒', emoji: '🌸', order: 3, desc: 'Alive, Ping, QR, News & Tools' },
-  { key: 'fun', title: '𝐅𝐔𝐍 & 𝐆𝐀𝐌𝐄𝐒', emoji: '🎀', order: 4, desc: 'Dice, Flip, Joke, Emomix' },
-  { key: 'owner', title: '𝐎𝐖𝐍𝐄𝐑 𝐂𝐎𝐍𝐓𝐑𝐎𝐋', emoji: '👑', order: 5, desc: 'Restart, Shutdown, Active' },
+  { key: 'download', title: '𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃', emoji: '💎', order: 1, desc: 'CineSubz, Song, Video, FB, TT, APK' },
+  { key: 'ai', title: '𝐀𝐈 & 𝐒𝐌𝐀𝐑𝐓', emoji: '🤖', order: 2, desc: 'GPT, Claude, Llama & Chat AI' },
+  { key: 'group', title: '𝐆𝐑𝐎𝐔𝐏 𝐓𝐎𝐎𝐋𝐒', emoji: '👥', order: 3, desc: 'Promote, Demote, Kick, Tag' },
+  { key: 'utility', title: '𝐔𝐓𝐈𝐋𝐈𝐓𝐈𝐄𝐒', emoji: '🌸', order: 4, desc: 'Alive, Ping, QR, News & Tools' },
+  { key: 'fun', title: '𝐅𝐔𝐍 & 𝐆𝐀𝐌𝐄𝐒', emoji: '🎀', order: 5, desc: 'Dice, Flip, Joke, Emomix' },
+  { key: 'owner', title: '𝐎𝐖𝐍𝐄𝐑 𝐂𝐎𝐍𝐓𝐑𝐎𝐋', emoji: '👑', order: 6, desc: 'Restart, Shutdown, Active' },
 ];
 
 function getLogo(sessionId) {
@@ -85,7 +86,7 @@ function buildRoyalTheme({ botName, userName, prefix, now, ram, uptime, totalCmd
     '╭─〔 📂 𝐁𝐎𝐓 𝐂𝐀𝐓𝐄𝐆𝐎𝐑𝐈𝐄𝐒 〕─•\n';
 
   allCategories.forEach((cat, index) => {
-    const numEmoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'][index] || '▫️';
+    const numEmoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣'][index] || '▫️';
     text += `│ ${numEmoji} ${cat.emoji} *${cat.title}* : ${cat.cmds.length} Commands\n`;
   });
 
@@ -93,8 +94,8 @@ function buildRoyalTheme({ botName, userName, prefix, now, ram, uptime, totalCmd
     '╰─────────────────────────•\n\n' +
     '╭─〔 💡 𝐇𝐎𝐖 𝐓𝐎 𝐔𝐒𝐄 〕─•\n' +
     '│ 📂 Tap "Select Category" button below\n' +
-    '│ 🔢 Or reply with Category Number (1 - 5)\n' +
-    `│ 💬 Or type: ${prefix}menu <category> (e.g. ${prefix}menu ai)\n` +
+    '│ 🔢 Or reply with Category Number (1 - 6)\n' +
+    `│ 💬 Or type: ${prefix}menu <category> (e.g. ${prefix}menu download)\n` +
     '╰─────────────────────────•\n\n' +
     '> 𓆩🌸 𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐 · 𝐐𝐔𝐄𝐄𝐍 𝐎𝐅 𝐇𝐄𝐀𝐑𝐓𝐒 🌸𓆪';
 
@@ -199,7 +200,7 @@ function buildMinimalTheme({ botName, userName, prefix, now, ram, uptime, totalC
 function buildMenuText(prefix, sessionId, requestedStyle, userName) {
   const settings = (() => { try { return getSettings(sessionId) || {}; } catch { return {}; } })();
   const botName = settings.botName || config.botName || 'Dark Queen';
-  const totalCmds = (getAllCommands() || []).filter((c) => c.category !== 'download').length;
+  const totalCmds = (getAllCommands() || []).length;
   const ram = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1) + ' MB';
   const uptime = formatUptime(process.uptime());
   const now = moment().tz(config.timezone || 'Asia/Colombo');
@@ -348,15 +349,16 @@ function categoryCommandsText(catKey, prefix, sessionId, requestedStyle) {
 function resolveCategoryKey(input) {
   if (!input) return null;
   const raw = String(input).trim();
-  const numMap = { '1': 'ai', '2': 'group', '3': 'utility', '4': 'fun', '5': 'owner' };
+  const numMap = { '1': 'download', '2': 'ai', '3': 'group', '4': 'utility', '5': 'fun', '6': 'owner' };
   if (numMap[raw]) return numMap[raw];
 
   let str = raw.replace(/^dqcat_/, '');
   str = str.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   str = str.replace(/^[0-9]\.?\s*/, '').trim();
 
-  if (['ai', 'group', 'utility', 'fun', 'owner'].includes(str)) return str;
+  if (['download', 'ai', 'group', 'utility', 'fun', 'owner'].includes(str)) return str;
   if (numMap[str]) return numMap[str];
+  if (str.includes('down') || str.includes('dl') || str.includes('song') || str.includes('video') || str.includes('yt') || str.includes('apk') || str.includes('movie') || str.includes('cinesubz')) return 'download';
   if (str.includes('ai') || str.includes('gpt') || str.includes('smart') || str.includes('claude') || str.includes('llama')) return 'ai';
   if (str.includes('group') || str.includes('gp') || str.includes('tagall')) return 'group';
   if (str.includes('util') || str.includes('tool') || str.includes('setting') || str.includes('alive') || str.includes('ping')) return 'utility';

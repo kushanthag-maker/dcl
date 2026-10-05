@@ -94,7 +94,7 @@ function extractInteractiveId(msg) {
         if (p.response && p.response.id) return String(p.response.id);
         for (const k of Object.keys(p)) {
           const v = p[k];
-          if (typeof v === 'string' && (v.startsWith('dqcat_') || v.startsWith('dqmenu_') || v.startsWith('dqcmd_') || v.startsWith('dqset_'))) {
+          if (typeof v === 'string' && (v.startsWith('dqcat_') || v.startsWith('dqmenu_') || v.startsWith('dqcmd_') || v.startsWith('dqset_') || v.startsWith('csub_'))) {
             return v;
           }
         }
@@ -171,6 +171,9 @@ function routeInteractive(body) {
 
   if (id.startsWith('baiscope_')) {
     return { commandName: 'baiscope', args: [id] };
+  }
+  if (id.startsWith('csub_')) {
+    return { commandName: 'cinesubz', args: [id] };
   }
   if (id.startsWith('dqset_')) {
     return { commandName: 'settings', args: [id] };
@@ -319,12 +322,16 @@ async function handleMessage(sock, msg, sessionId) {
     if (routed) {
       commandName = routed.commandName;
       args = routed.args;
+    } else if (/^\d+$/.test(body) && require('../commands/download/cinesubz').hasPending(from)) {
+      // 1b) Active CineSubz movie selection / direct link pick
+      commandName = 'cinesubz';
+      args = [body];
     } else if (/^[1-9]$/.test(body) && isPanelReply(msg)) {
-      // 1b) Settings panel number reply (reply "1" / "2" to the panel)
+      // 1c) Settings panel number reply (reply "1" / "2" to the panel)
       commandName = 'settings';
       args = ['num', body];
     } else if (/^[1-6]$/.test(body)) {
-      // 1c) Menu category number reply (reply "1" - "6" to the category dashboard)
+      // 1d) Menu category number reply (reply "1" - "6" to the category dashboard)
       const catMap = { '1': 'download', '2': 'ai', '3': 'group', '4': 'utility', '5': 'fun', '6': 'owner' };
       commandName = 'menu';
       args = ['cat', catMap[body]];

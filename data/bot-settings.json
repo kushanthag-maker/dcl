@@ -17,6 +17,24 @@
       "antiLink": true,
       "buttons": true,
       "menuStyle": "royal"
+    },
+    "test_session": {
+      "botName": "Dark Queen",
+      "logo": "https://files.catbox.moe/yjyx4x.webp",
+      "statusSeen": false,
+      "antiDelete": false,
+      "antiLink": false,
+      "buttons": true,
+      "menuStyle": "royal"
+    },
+    "test_session_off": {
+      "botName": "Dark Queen",
+      "logo": "https://files.catbox.moe/yjyx4x.webp",
+      "statusSeen": false,
+      "antiDelete": false,
+      "antiLink": false,
+      "buttons": false,
+      "menuStyle": "royal"
     }
   },
   "phoneMap": {
