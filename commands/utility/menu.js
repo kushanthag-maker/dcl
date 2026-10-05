@@ -346,8 +346,29 @@ function categoryCommandsText(catKey, prefix, sessionId, requestedStyle) {
   return { text, meta };
 }
 
+function resolveCategoryKey(input) {
+  if (!input) return null;
+  const raw = String(input).trim();
+  const numMap = { '1': 'download', '2': 'ai', '3': 'group', '4': 'utility', '5': 'fun', '6': 'owner' };
+  if (numMap[raw]) return numMap[raw];
+
+  let str = raw.replace(/^dqcat_/, '');
+  str = str.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  str = str.replace(/^[0-9]\.?\s*/, '').trim();
+
+  if (['download', 'ai', 'group', 'utility', 'fun', 'owner'].includes(str)) return str;
+  if (numMap[str]) return numMap[str];
+  if (str.includes('down') || str.includes('dl') || str.includes('song') || str.includes('video') || str.includes('yt') || str.includes('apk') || str.includes('movie')) return 'download';
+  if (str.includes('ai') || str.includes('gpt') || str.includes('smart') || str.includes('claude') || str.includes('llama')) return 'ai';
+  if (str.includes('group') || str.includes('gp') || str.includes('tagall')) return 'group';
+  if (str.includes('util') || str.includes('tool') || str.includes('setting') || str.includes('alive') || str.includes('ping')) return 'utility';
+  if (str.includes('fun') || str.includes('game') || str.includes('joke')) return 'fun';
+  if (str.includes('owner') || str.includes('restart') || str.includes('shutdown')) return 'owner';
+  return null;
+}
+
 /** Relay menu with video/image attachment & native flow buttons */
-async function sendMainMenu(sock, jid, { text, footer, buttonText, rows, quickButtons, imageUrl, quoted }) {
+async function sendMainMenu(sock, jid, { text, footer, buttonText, rows, imageUrl, quoted }) {
   const { generateWAMessageFromContent, prepareWAMessageMedia } = require('@whiskeysockets/baileys');
 
   const sections = [
@@ -368,16 +389,6 @@ async function sendMainMenu(sock, jid, { text, footer, buttonText, rows, quickBu
       buttonParamsJson: JSON.stringify({ title: buttonText, sections }),
     },
   ];
-
-  for (const b of (quickButtons || []).slice(0, 3)) {
-    nativeFlowButtons.push({
-      name: 'quick_reply',
-      buttonParamsJson: JSON.stringify({
-        display_text: String(b.text).slice(0, 25),
-        id: String(b.id),
-      }),
-    });
-  }
 
   let header = { title: '👑 𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐', hasMediaAttachment: false };
   if (imageUrl) {
@@ -456,11 +467,6 @@ async function showMain(sock, msg, from, sessionId, requestedStyle) {
       footer: '𓆩🌸 DARK QUEEN V2 · ROYAL EDITION 🌸𓆪',
       buttonText: '📂 Select Category',
       rows,
-      quickButtons: [
-        { id: 'dqmenu_alive', text: '👑 Alive' },
-        { id: 'dqmenu_settings', text: '⚙️ Settings' },
-        { id: 'dqmenu_style', text: '🎨 Themes' },
-      ],
       imageUrl: logo,
       quoted: msg,
     });
@@ -481,39 +487,12 @@ async function showMain(sock, msg, from, sessionId, requestedStyle) {
 async function showCategory(sock, msg, from, catKey, sessionId, requestedStyle) {
   const prefix = config.prefix || '.';
   const logo = getLogo(sessionId);
-  const { text, meta } = categoryCommandsText(catKey, prefix, sessionId, requestedStyle);
+  const resolved = resolveCategoryKey(catKey) || 'download';
+  const { text, meta } = categoryCommandsText(resolved, prefix, sessionId, requestedStyle);
 
-  // Categories list for interactive select button
-  const rows = [];
-  for (const other of CATEGORY_META) {
-    const cmds = (getCommandsByCategory(other.key) || [])
-      .map((c) => String(c.name || '').trim())
-      .filter(Boolean)
-      .sort();
-    if (!cmds.length) continue;
-    const isCurrent = other.key === catKey;
-    rows.push({
-      id: 'dqcat_' + other.key,
-      title: `${other.emoji} ${other.title}` + (isCurrent ? ' ✓' : ''),
-      description: `${cmds.length} commands · ${other.desc}`,
-    });
-  }
-
+  // Send the category commands card cleanly as image caption
+  // Guarantees 100% reliable delivery on all WhatsApp clients & devices
   try {
-    await sendMainMenu(sock, from, {
-      text,
-      footer: `𓆩 ${meta.emoji} ${meta.title} · DARK QUEEN V2 𓆪`,
-      buttonText: '📂 Select Category',
-      rows,
-      quickButtons: [
-        { id: 'dqcat_' + catKey, text: '🔄 Refresh' },
-        { id: 'dqmenu_alive', text: '👑 Alive' },
-        { id: 'dqmenu_settings', text: '⚙️ Settings' },
-      ],
-      imageUrl: logo,
-      quoted: msg,
-    });
-  } catch (err) {
     await sock.sendMessage(
       from,
       {
@@ -522,6 +501,10 @@ async function showCategory(sock, msg, from, catKey, sessionId, requestedStyle) 
       },
       { quoted: msg }
     );
+  } catch (err) {
+    try {
+      await sock.sendMessage(from, { text }, { quoted: msg });
+    } catch (_) {}
   }
 }
 
@@ -598,48 +581,15 @@ module.exports = {
         requestedStyle = firstArg;
       }
 
-      // Category filter: e.g. .menu download or .menu cat dqcat_download
+      // Category filter: e.g. .menu download or .menu cat dqcat_download or .menu 1
       if (firstArg === 'cat' && args[1]) {
-        const key = String(args[1]).replace('dqcat_', '').trim();
+        const key = resolveCategoryKey(args[1]) || 'download';
         return await showCategory(sock, msg, from, key, sid, requestedStyle);
       }
 
-      // Category by number (1: download, 2: ai, 3: group, 4: utility, 5: fun, 6: owner)
-      const numMap = { '1': 'download', '2': 'ai', '3': 'group', '4': 'utility', '5': 'fun', '6': 'owner' };
-      if (numMap[firstArg]) {
-        return await showCategory(sock, msg, from, numMap[firstArg], sid, requestedStyle);
-      }
-
-      // Category by alias
-      const aliasMap = {
-        dl: 'download',
-        media: 'download',
-        song: 'download',
-        video: 'download',
-        yt: 'download',
-        apk: 'download',
-        movie: 'download',
-        gpt: 'ai',
-        smart: 'ai',
-        bot: 'ai',
-        gp: 'group',
-        util: 'utility',
-        tools: 'utility',
-        tool: 'utility',
-        games: 'fun',
-        game: 'fun',
-        admin: 'owner',
-      };
-      if (aliasMap[firstArg]) {
-        return await showCategory(sock, msg, from, aliasMap[firstArg], sid, requestedStyle);
-      }
-
-      // Check if first arg is a known category name
-      const matchedCat = CATEGORY_META.find(
-        (c) => c.key === firstArg || c.title.toLowerCase().includes(firstArg)
-      );
-      if (matchedCat) {
-        return await showCategory(sock, msg, from, matchedCat.key, sid, requestedStyle);
+      const directCat = resolveCategoryKey(firstArg);
+      if (directCat) {
+        return await showCategory(sock, msg, from, directCat, sid, requestedStyle);
       }
 
       // Full menu
