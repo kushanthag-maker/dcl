@@ -110,6 +110,9 @@ function routeInteractive(body) {
     const theme = id.replace('dqtheme_', '').trim().toLowerCase();
     return { commandName: 'menu', args: ['style', theme] };
   }
+  if (id === 'dqtheme_picker') {
+    return { commandName: 'menu', args: ['style'] };
+  }
   // run a command from category list (dqcmd_song → .song)
   if (id.startsWith('dqcmd_')) {
     const name = id.slice(6).trim().toLowerCase();
@@ -120,6 +123,9 @@ function routeInteractive(body) {
     const name = id.slice(7).trim().toLowerCase();
     if (name === 'menu' || name === 'help') {
       return { commandName: 'menu', args: [] };
+    }
+    if (name === 'style' || name === 'theme' || name === 'themes') {
+      return { commandName: 'menu', args: ['style'] };
     }
     if (name) return { commandName: name, args: [] };
   }
@@ -156,6 +162,18 @@ async function handleMessage(sock, msg, sessionId) {
       // 1b) Settings panel number reply (reply "1" / "2" to the panel)
       commandName = 'settings';
       args = ['num', body];
+    } else if (/^[1-6]$/.test(body)) {
+      // 1c) Menu category number reply (reply "1" - "6" to the category dashboard)
+      const q =
+        msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.conversation ||
+        msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.extendedTextMessage?.text ||
+        msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.imageMessage?.caption ||
+        '';
+      if (q.includes('CATEGORIES') || q.includes('DARK QUEEN') || q.includes('Select Category')) {
+        const catMap = { '1': 'download', '2': 'ai', '3': 'group', '4': 'utility', '5': 'fun', '6': 'owner' };
+        commandName = 'menu';
+        args = ['cat', 'dqcat_' + catMap[body]];
+      }
     } else if (body.startsWith(config.prefix || '.')) {
       // 2) Normal prefix commands
       const parts = body.slice((config.prefix || '.').length).trim().split(/\s+/);

@@ -61,7 +61,7 @@ function getUserName(msg) {
   );
 }
 
-// ==========================================
+/// ==========================================
 // 1. ROYAL LUXURY THEME (DEFAULT)
 // ==========================================
 function buildRoyalTheme({ botName, userName, prefix, now, ram, uptime, totalCmds, allCategories }) {
@@ -82,24 +82,22 @@ function buildRoyalTheme({ botName, userName, prefix, now, ram, uptime, totalCmd
     `│ ⚙️ 𝐏𝐫𝐞𝐟𝐢𝐱   : 「 ${prefix} 」\n` +
     `│ 🤖 𝐁𝐨𝐭 𝐍𝐚𝐦𝐞 : ${botName}\n` +
     `│ 👑 𝐎𝐰𝐧𝐞𝐫    : Red Devil × Zayra\n` +
-    '╰─────────────────────────•\n';
+    '╰─────────────────────────•\n\n' +
+    '╭─〔 📂 𝐁𝐎𝐓 𝐂𝐀𝐓𝐄𝐆𝐎𝐑𝐈𝐄𝐒 〕─•\n';
 
-  for (const cat of allCategories) {
-    if (!cat.cmds.length) continue;
-    text += `\n╭─〔 ${cat.emoji} ${cat.title} (${cat.cmds.length}) 〕─•\n`;
-    for (let i = 0; i < cat.cmds.length; i++) {
-      const isLast = i === cat.cmds.length - 1;
-      text += `│ ${isLast ? '└' : '├'}─⋄ ${prefix}${cat.cmds[i]}\n`;
-    }
-    text += '╰─────────────────────────•\n';
-  }
+  allCategories.forEach((cat, index) => {
+    const numEmoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣'][index] || '▫️';
+    text += `│ ${numEmoji} ${cat.emoji} *${cat.title}* : ${cat.cmds.length} Commands\n`;
+  });
 
   text +=
-    '\n╭─〔 💡 𝐐𝐔𝐈𝐂𝐊 𝐓𝐈𝐏 〕─•\n' +
-    `│ 🌸 Type ${prefix}menu <category> for single view\n` +
-    `│ 🎨 Styles: ${prefix}menu --cyber | --rose | --minimal\n` +
-    '╰─────────────────────────•\n' +
-    '\n> 𓆩🌸 𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐 · 𝐐𝐔𝐄𝐄𝐍 𝐎𝐅 𝐇𝐄𝐀𝐑𝐓𝐒 🌸𓆪';
+    '╰─────────────────────────•\n\n' +
+    '╭─〔 💡 𝐇𝐎𝐖 𝐓𝐎 𝐔𝐒𝐄 〕─•\n' +
+    '│ 📂 Tap "Select Category" button below\n' +
+    '│ 🔢 Or reply with Category Number (1 - 6)\n' +
+    `│ 💬 Or type: ${prefix}menu <category> (e.g. ${prefix}menu download)\n` +
+    '╰─────────────────────────•\n\n' +
+    '> 𓆩🌸 𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐 · 𝐐𝐔𝐄𝐄𝐍 𝐎𝐅 𝐇𝐄𝐀𝐑𝐓𝐒 🌸𓆪';
 
   return text;
 }
@@ -121,22 +119,22 @@ function buildCyberTheme({ botName, userName, prefix, now, ram, uptime, totalCmd
     `│ ❯ Modules  : ${totalCmds} Loaded\n` +
     `│ ❯ Command  : [ ${prefix} ]\n` +
     `│ ❯ Core ID  : ${botName}\n` +
-    '└───[ ONLINE ]─────────────\n';
+    '└───[ ONLINE ]─────────────\n\n' +
+    '┌───〔 📂 MODULE DIRECTORY 〕───\n';
 
-  for (const cat of allCategories) {
-    if (!cat.cmds.length) continue;
-    text += `\n┌───〔 ${cat.emoji} NET_${cat.key.toUpperCase()} (${cat.cmds.length}) 〕───\n`;
-    for (let i = 0; i < cat.cmds.length; i++) {
-      text += `│ ❯❯ ${prefix}${cat.cmds[i]}\n`;
-    }
-    text += '└───[ READY ]──────────────\n';
-  }
+  allCategories.forEach((cat, index) => {
+    const num = index + 1;
+    text += `│ ❯ [0${num}] ${cat.emoji} NET_${cat.key.toUpperCase()} (${cat.cmds.length} protocols)\n`;
+  });
 
   text +=
-    '\n┌───〔 ⚡ PROTOCOL 〕───\n' +
-    `│ ❯ Tap button or execute ${prefix}cmd\n` +
-    '└──────────────────────────\n' +
-    '\n> ⟦ ⚡ DARK QUEEN V2 · NEON MATRIX ⚡ ⟧';
+    '└───[ READY ]──────────────\n\n' +
+    '┌───〔 ⚡ PROTOCOL 〕───\n' +
+    '│ ❯ Tap "Select Category" to access module\n' +
+    '│ ❯ Or reply with module number [1 - 6]\n' +
+    `│ ❯ Or execute: ${prefix}menu <category>\n` +
+    '└──────────────────────────\n\n' +
+    '> ⟦ ⚡ DARK QUEEN V2 · NEON MATRIX ⚡ ⟧';
 
   return text;
 }
@@ -154,25 +152,24 @@ function buildRoseTheme({ botName, userName, prefix, now, ram, uptime, totalCmds
     `│ 🌸 𝒽𝑒𝓁𝓁𝑜  : ${userName}\n` +
     `│ 🎀 𝓉𝒾𝓂𝑒   : ${now.format('hh:mm A')}\n` +
     `│ 🌷 𝓊𝓅𝓉𝒾𝓂𝑒 : ${uptime}\n` +
-    `│ 🍰 𝓅𝓇𝑒𝓻𝒾𝓍  : 「 ${prefix} 」\n` +
+    `│ 🍰 𝓅𝓇𝑒𝒻𝒾𝓍  : 「 ${prefix} 」\n` +
     `│ 🦄 𝒸𝓂𝒹𝓈   : ${totalCmds} features\n` +
     `│ 👑 𝒷𝑜𝓉    : ${botName}\n` +
-    '╰───────────────────────────╯\n';
+    '╰───────────────────────────╯\n\n' +
+    '╭───┈〔 ୨୧ 𝒸𝒶𝓉𝑒𝑔𝑜𝓇𝒾𝑒𝓈 ୨୧ 〕┈───╮\n';
 
-  for (const cat of allCategories) {
-    if (!cat.cmds.length) continue;
-    text += `\n╭───┈〔 ୨୧ ${cat.emoji} ${cat.title.toLowerCase()} ୨୧ 〕┈───╮\n`;
-    for (let i = 0; i < cat.cmds.length; i++) {
-      text += `│ ✿ ${prefix}${cat.cmds[i]}\n`;
-    }
-    text += '╰───────────────────────────────╯\n';
-  }
+  allCategories.forEach((cat, index) => {
+    const numEmoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣'][index] || '✿';
+    text += `│ ${numEmoji} ${cat.emoji} ${cat.title.toLowerCase()} (${cat.cmds.length})\n`;
+  });
 
   text +=
-    '\n╭───┈〔 ୨୧ 𝒷𝓁𝑜𝑜𝓂 ୨୧ 〕┈───╮\n' +
-    '│ 🌷 𝐻𝒶𝓋𝑒 𝒶 𝓂𝒶𝑔𝒾𝒸𝒶𝓁 𝒹𝒶𝓎 𝓈𝓌𝑒𝑒𝓉𝒾𝑒 💕\n' +
-    '╰─────────────────────────╯\n' +
-    '\n> 𓆩 🌸 𝒟𝒶𝓇𝓀 𝒬𝓊𝑒𝑒𝓃 𝒱𝟤 · 𝒫𝒾𝓃𝓀 𝑅𝑜𝓈𝑒 🌸 𓆪';
+    '╰───────────────────────────────╯\n\n' +
+    '╭───┈〔 ୨୧ 𝒽𝑜𝓌 𝓉𝑜 𝓊𝓈𝑒 ୨୧ 〕┈───╮\n' +
+    '│ 🌷 𝒯𝒶𝓅 "𝒮𝑒𝓁𝑒𝒸𝓉 𝒞𝒶𝓉𝑒𝑔𝑜𝓇𝓎" 𝒷𝑒𝓁𝑜𝓌 💕\n' +
+    '│ 🎀 𝒪𝓇 𝓇𝑒𝓅𝓁𝓎 𝓌𝒾𝓉𝒽 𝓃𝓊𝓂𝒷𝑒𝓇 [𝟣 - 𝟨]\n' +
+    '╰─────────────────────────╯\n\n' +
+    '> 𓆩 🌸 𝒟𝒶𝓇𝓀 𝒬𝓊𝑒𝑒𝓃 𝒱𝟤 · 𝒫𝒾𝓃𝓀 𝑅𝑜𝓈𝑒 🌸 𓆪';
 
   return text;
 }
@@ -186,15 +183,16 @@ function buildMinimalTheme({ botName, userName, prefix, now, ram, uptime, totalC
     `  Online • ${uptime} • ${totalCmds} cmds\n` +
     '└───────────────────────┘\n\n' +
     `• User: ${userName} | Prefix: ${prefix} | Bot: ${botName}\n` +
-    `• Time: ${now.format('HH:mm')} | RAM: ${ram}\n\n`;
+    `• Time: ${now.format('HH:mm')} | RAM: ${ram}\n\n` +
+    '[ CATEGORIES ]\n';
 
-  for (const cat of allCategories) {
-    if (!cat.cmds.length) continue;
-    text += `[ ${cat.emoji} ${cat.title} ]\n`;
-    text += cat.cmds.map((c) => `  ${prefix}${c}`).join('  •  ') + '\n\n';
-  }
+  allCategories.forEach((cat, index) => {
+    text += `  [${index + 1}] ${cat.emoji} ${cat.title} (${cat.cmds.length})\n`;
+  });
 
-  text += `> ${DISPLAY_BOT_NAME} • Minimal`;
+  text +=
+    `\n💡 Tap "Select Category" or reply [1 - 6] to view commands.\n` +
+    `> ${DISPLAY_BOT_NAME} • Minimal`;
   return text;
 }
 
@@ -258,48 +256,91 @@ function categoryCommandsText(catKey, prefix, sessionId, requestedStyle) {
   let text = '';
   if (style === 'cyber') {
     text =
-      `╔══════════════════════════╗\n` +
+      `╔════════════════════════════╗\n` +
       `  ⚡ [ MODULE : ${meta.title} ] ⚡\n` +
-      `╚══════════════════════════╝\n\n` +
-      `┌───〔 ${meta.emoji} COMMANDS (${cmds.length}) 〕───\n`;
+      `  [ TOTAL : ${cmds.length} PROTOCOLS LOADED ]\n` +
+      `╚════════════════════════════╝\n\n` +
+      `┌───〔 ${meta.emoji} AVAILABLE PROTOCOLS 〕───\n`;
     if (!cmds.length) {
       text += '│ ❯❯ _No commands available in this module_\n';
     } else {
       for (const cmd of cmds) {
-        text += `│ ❯❯ ${prefix}${cmd.name}${cmd.description ? ` - _${cmd.description}_` : ''}\n`;
+        const usage = cmd.usage ? ` ${cmd.usage}` : '';
+        text += `│ ❯❯ *${prefix}${cmd.name}*${usage}\n`;
+        if (cmd.description) text += `│    └ ℹ️ _${cmd.description}_\n`;
       }
     }
-    text += '└───[ READY ]──────────────\n\n> ⟦ ⚡ DARK QUEEN V2 ⚡ ⟧';
+    text +=
+      '└───[ READY ]──────────────\n\n' +
+      '┌───〔 ⚡ PROTOCOL TIP 〕───\n' +
+      `│ ❯ Execute: ${prefix}<command> <query>\n` +
+      `│ ❯ Change module: Tap "Select Category"\n` +
+      '└──────────────────────────\n\n' +
+      '> ⟦ ⚡ DARK QUEEN V2 · CYBER SUITE ⚡ ⟧';
   } else if (style === 'rose') {
     text =
-      `╭━━━━━━━━━━━━━━━━━━━━━━━━━╮\n` +
+      `╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮\n` +
       `  🌸 ୨୧ ${meta.title} ୨୧ 🌸\n` +
-      `╰━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n` +
-      `╭───┈〔 ୨୧ ${meta.emoji} 𝒻𝑒𝒶𝓉𝓊𝓇𝑒𝓈 (${cmds.length}) ୨୧ 〕┈───╮\n`;
+      `  ╰┈➤ ${cmds.length} 𝓂𝒶𝑔𝒾𝒸𝒶𝓁 𝒻𝑒𝒶𝓉𝓊𝓇𝑒𝓈 💕\n` +
+      `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n` +
+      `╭───┈〔 ୨୧ ${meta.emoji} 𝒸𝑜𝓂𝓂𝒶𝓃𝒹𝓈 ୨୧ 〕┈───╮\n`;
     if (!cmds.length) {
       text += '│ ✿ _no commands found_ 🌸\n';
     } else {
       for (const cmd of cmds) {
-        text += `│ ✿ *${prefix}${cmd.name}*\n│    _${cmd.description || 'Command'}_ \n`;
+        const usage = cmd.usage ? ` ${cmd.usage}` : '';
+        text += `│ ✿ *${prefix}${cmd.name}*${usage}\n`;
+        if (cmd.description) text += `│    ↳ _${cmd.description}_\n`;
       }
     }
-    text += '╰─────────────────────────────╯\n\n> 𓆩 🌸 𝒟𝒶𝓇𝓀 𝒬𝓊𝑒𝑒𝓃 𝒱𝟤 🌸 𓆪';
-  } else {
-    // Royal style
+    text +=
+      '╰───────────────────────────────╯\n\n' +
+      '╭───┈〔 ୨୧ 𝓉𝒾𝓅 ୨୧ 〕┈───╮\n' +
+      `│ 🌷 𝒯𝓎𝓅𝑒 𝒶𝓃𝓎 𝒸𝑜𝓂𝓂𝒶𝓃𝒹 𝓉𝑜 𝓊𝓈𝑒 ✨\n` +
+      `│ 📂 𝒯𝒶𝓅 "𝒮𝑒𝓁𝑒𝒸𝓉 𝒞𝒶𝓉𝑒𝑔𝑜𝓇𝓎" 𝓉𝑜 𝓈𝓌𝒾𝓉𝒸𝒽 💕\n` +
+      '╰─────────────────────────╯\n\n' +
+      '> 𓆩 🌸 𝒟𝒶𝓇𝓀 𝒬𝓊𝑒𝑒𝓃 𝒱𝟤 · 𝒫𝒾𝓃𝓀 𝑅𝑜𝓈𝑒 🌸 𓆪';
+  } else if (style === 'minimal') {
     text =
-      `╔══════════════════════════╗\n` +
+      `┌── 👑 ${meta.title} ──┐\n` +
+      `  ${cmds.length} commands available\n` +
+      `└────────────────────────┘\n\n`;
+    for (const cmd of cmds) {
+      const usage = cmd.usage ? ` ${cmd.usage}` : '';
+      text += `• *${prefix}${cmd.name}*${usage}\n`;
+      if (cmd.description) text += `  └ _${cmd.description}_\n`;
+    }
+    text +=
+      `\n💡 Type any command above to run.\n` +
+      `> DARK QUEEN V2 • Minimal`;
+  } else {
+    // Royal Luxury (Default)
+    text =
+      `╔════════════════════════════╗\n` +
       `  👑 ${meta.emoji} ${meta.title} 👑\n` +
-      `╚══════════════════════════╝\n\n` +
-      `╭─〔 📜 𝐂𝐎𝐌𝐌𝐀𝐍𝐃 𝐋𝐈𝐒𝐓 (${cmds.length}) 〕─•\n`;
+      `  ✨ ${cmds.length} 𝐂𝐎𝐌𝐌𝐀𝐍𝐃𝐒 𝐀𝐕𝐀𝐈𝐋𝐀𝐁𝐋𝐄 ✨\n` +
+      `╚════════════════════════════╝\n\n` +
+      `╭─〔 📜 𝐂𝐎𝐌𝐌𝐀𝐍𝐃 𝐋𝐈𝐒𝐓 〕─•\n`;
     if (!cmds.length) {
       text += '│ ⋄ _No commands in this section yet_\n';
     } else {
       for (let i = 0; i < cmds.length; i++) {
         const isLast = i === cmds.length - 1;
-        text += `│ ${isLast ? '└' : '├'}─⋄ *${prefix}${cmds[i].name}* : _${cmds[i].description || 'Execute'}\_\n`;
+        const cmd = cmds[i];
+        const usage = cmd.usage ? ` ${cmd.usage}` : '';
+        text += `│ ${isLast ? '└' : '├'}─⋄ *${prefix}${cmd.name}*${usage}\n`;
+        if (cmd.description) {
+          text += `│ ${isLast ? ' ' : '│'}   └ ℹ️ _${cmd.description}_\n`;
+        }
       }
     }
-    text += '╰─────────────────────────•\n\n> 𓆩👑 DARK QUEEN V2 👑𓆪';
+    text +=
+      '╰─────────────────────────•\n\n' +
+      '╭─〔 💡 𝐇𝐎𝐖 𝐓𝐎 𝐔𝐒𝐄 〕─•\n' +
+      `│ 🌸 Type ${prefix}<command> to execute\n` +
+      `│ 📂 Tap "Select Category" below to switch\n` +
+      '╰─────────────────────────•\n\n' +
+      `> 𓆩👑 DARK QUEEN V2 · ${meta.title} 👑𓆪`;
   }
 
   return { text, meta };
@@ -413,12 +454,12 @@ async function showMain(sock, msg, from, sessionId, requestedStyle) {
     await sendMainMenu(sock, from, {
       text: menuText,
       footer: '𓆩🌸 DARK QUEEN V2 · ROYAL EDITION 🌸𓆪',
-      buttonText: '📂 Explore Categories',
+      buttonText: '📂 Select Category',
       rows,
       quickButtons: [
-        { id: 'dqmenu_settings', text: '⚙️ Settings' },
-        { id: 'dqmenu_ping', text: '📡 Ping' },
         { id: 'dqmenu_alive', text: '👑 Alive' },
+        { id: 'dqmenu_settings', text: '⚙️ Settings' },
+        { id: 'dqmenu_style', text: '🎨 Themes' },
       ],
       imageUrl: logo,
       quoted: msg,
@@ -442,16 +483,34 @@ async function showCategory(sock, msg, from, catKey, sessionId, requestedStyle) 
   const logo = getLogo(sessionId);
   const { text, meta } = categoryCommandsText(catKey, prefix, sessionId, requestedStyle);
 
+  // Categories list for interactive select button
+  const rows = [];
+  for (const other of CATEGORY_META) {
+    const cmds = (getCommandsByCategory(other.key) || [])
+      .map((c) => String(c.name || '').trim())
+      .filter(Boolean)
+      .sort();
+    if (!cmds.length) continue;
+    const isCurrent = other.key === catKey;
+    rows.push({
+      id: 'dqcat_' + other.key,
+      title: `${other.emoji} ${other.title}` + (isCurrent ? ' ✓' : ''),
+      description: `${cmds.length} commands · ${other.desc}`,
+    });
+  }
+
   try {
-    await sendQuickReplies(sock, from, {
+    await sendMainMenu(sock, from, {
       text,
-      footer: `${meta.emoji} ${meta.title} · DARK QUEEN V2`,
-      imageUrl: logo,
-      buttons: [
-        { id: 'dqmenu_menu', text: '⬅️ Full Menu' },
-        { id: 'dqmenu_settings', text: '⚙️ Settings' },
+      footer: `𓆩 ${meta.emoji} ${meta.title} · DARK QUEEN V2 𓆪`,
+      buttonText: '📂 Select Category',
+      rows,
+      quickButtons: [
         { id: 'dqcat_' + catKey, text: '🔄 Refresh' },
+        { id: 'dqmenu_alive', text: '👑 Alive' },
+        { id: 'dqmenu_settings', text: '⚙️ Settings' },
       ],
+      imageUrl: logo,
       quoted: msg,
     });
   } catch (err) {
@@ -543,6 +602,36 @@ module.exports = {
       if (firstArg === 'cat' && args[1]) {
         const key = String(args[1]).replace('dqcat_', '').trim();
         return await showCategory(sock, msg, from, key, sid, requestedStyle);
+      }
+
+      // Category by number (1: download, 2: ai, 3: group, 4: utility, 5: fun, 6: owner)
+      const numMap = { '1': 'download', '2': 'ai', '3': 'group', '4': 'utility', '5': 'fun', '6': 'owner' };
+      if (numMap[firstArg]) {
+        return await showCategory(sock, msg, from, numMap[firstArg], sid, requestedStyle);
+      }
+
+      // Category by alias
+      const aliasMap = {
+        dl: 'download',
+        media: 'download',
+        song: 'download',
+        video: 'download',
+        yt: 'download',
+        apk: 'download',
+        movie: 'download',
+        gpt: 'ai',
+        smart: 'ai',
+        bot: 'ai',
+        gp: 'group',
+        util: 'utility',
+        tools: 'utility',
+        tool: 'utility',
+        games: 'fun',
+        game: 'fun',
+        admin: 'owner',
+      };
+      if (aliasMap[firstArg]) {
+        return await showCategory(sock, msg, from, aliasMap[firstArg], sid, requestedStyle);
       }
 
       // Check if first arg is a known category name
