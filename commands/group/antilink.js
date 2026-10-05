@@ -6,6 +6,7 @@
  *   .antilink status
  */
 const { getSettings, updateSettings } = require('../../lib/botSettings');
+const antiLinkStore = require('../../lib/antiLinkStore');
 
 module.exports = {
   name: 'antilink',
@@ -25,19 +26,21 @@ module.exports = {
     try {
       const meta = await sock.groupMetadata(from);
       const senderJid = msg.key.participant || from;
-      const senderNum = senderJid.split('@')[0].split(':')[0];
+      const senderClean = senderJid.split('@')[0].split(':')[0];
 
       const senderPart = meta.participants.find(
-        (p) => p.id.split('@')[0].split(':')[0] === senderNum
+        (p) => p.id.split('@')[0].split(':')[0] === senderClean
       );
       if (senderPart?.admin === 'admin' || senderPart?.admin === 'superadmin') {
         isSenderAdmin = true;
       }
 
       const botNum = (sock.user?.id || '').split('@')[0].split(':')[0];
-      const botPart = meta.participants.find(
-        (p) => p.id.split('@')[0].split(':')[0] === botNum
-      );
+      const botLid = sock.user?.lid ? sock.user.lid.split('@')[0].split(':')[0] : null;
+      const botPart = meta.participants.find((p) => {
+        const pClean = p.id.split('@')[0].split(':')[0];
+        return pClean === botNum || (botLid && pClean === botLid);
+      });
       if (botPart?.admin === 'admin' || botPart?.admin === 'superadmin') {
         isBotAdmin = true;
       }
@@ -51,45 +54,51 @@ module.exports = {
       );
     }
 
-    const current = !!getSettings(sid).antiLink;
+    const isGroupActive = antiLinkStore.isGroupEnabled(from) || !!getSettings(sid).antiLink;
 
     if (sub === 'on' || sub === 'enable' || sub === '1') {
+      antiLinkStore.setGroupEnabled(from, true);
       updateSettings(sid, { antiLink: true });
       try { await sock.sendMessage(from, { react: { text: '🛡️', key: msg.key } }); } catch (_) {}
 
-      let text = '🛡️ *AntiLink Protection is now ACTIVE (ON)!* ✅\n\n' +
-        'Any WhatsApp invite links sent by non-admin members will be automatically deleted.\n';
-      if (!isBotAdmin) {
-        text += '\n⚠️ *Attention:* Please make sure the bot is an *Admin* in this group so I have permission to delete link messages!';
+      let text = '🛡️ *AntiLink Protection is now ACTIVE (ON) for this group!* ✅\n\n' +
+        '• Any WhatsApp invite links sent by non-admin members will be detected.\n';
+      if (isBotAdmin) {
+        text += '• 🤖 *Bot Status:* Group Admin ✅ (Links will be automatically deleted immediately)';
+      } else {
+        text += '• ⚠️ *Notice:* Bot is currently *NOT Admin*. Please make the bot an *Admin* so it can automatically delete link messages!';
       }
       return await sock.sendMessage(from, { text }, { quoted: msg });
     }
 
     if (sub === 'off' || sub === 'disable' || sub === '0') {
-      updateSettings(sid, { antiLink: false });
+      antiLinkStore.setGroupEnabled(from, false);
       try { await sock.sendMessage(from, { react: { text: '⛔', key: msg.key } }); } catch (_) {}
 
       return await sock.sendMessage(
         from,
-        { text: '🛡️ *AntiLink Protection is now DISABLED (OFF)!* ⛔\nMembers may now send links.' },
+        { text: '🛡️ *AntiLink Protection is now DISABLED (OFF) for this group!* ⛔\nMembers may now send links.' },
         { quoted: msg }
       );
     }
 
-    // Toggle if no sub-arg or display status
+    // Status display
     const statusText =
       '╔════════════════════════════╗\n' +
       '  🛡️ 𝐀𝐍𝐓𝐈-𝐋𝐈𝐍𝐊 𝐏𝐑𝐎𝐓𝐄𝐂𝐓𝐈𝐎𝐍 🛡️\n' +
       '╚════════════════════════════╝\n\n' +
-      `│ 📊 Current Status : ${current ? '*ENABLED* ✅' : '*DISABLED* ⛔'}\n` +
-      `│ 🤖 Bot Admin      : ${isBotAdmin ? '*Yes* ✅' : '*No (Promote Bot)* ⚠️'}\n` +
-      `│ 👤 Your Role      : *Group Admin* 👑\n\n` +
+      `│ 📊 Group Status  : ${isGroupActive ? '*ENABLED* ✅' : '*DISABLED* ⛔'}\n` +
+      `│ 🤖 Bot Admin     : ${isBotAdmin ? '*Yes (Can Delete)* ✅' : '*No (Promote Bot to Admin)* ⚠️'}\n` +
+      `│ 👤 Your Role     : *Group Admin* 👑\n\n` +
       '╭─〔 💡 𝐂𝐎𝐌𝐌𝐀𝐍𝐃 𝐔𝐒𝐀𝐆𝐄 〕─•\n' +
       '│ 🛡️ .antilink on   : Enable link deletion\n' +
       '│ ⛔ .antilink off  : Disable protection\n' +
       '│ ⚙️ .settings      : Toggle via Control Panel\n' +
       '╰─────────────────────────•\n\n' +
-      '> 𓆩🛡️ DARK QUEEN V2 · GROUP SECURITY 🛡️𓆪';
+      (isBotAdmin
+        ? '✅ *Bot is Admin:* Non-admin link messages will be deleted automatically!'
+        : '⚠️ *Important:* To delete messages, please make this Bot a Group Admin!') +
+      '\n\n> 𓆩🛡️ DARK QUEEN V2 · GROUP SECURITY 🛡️𓆪';
 
     return await sock.sendMessage(from, { text: statusText }, { quoted: msg });
   },

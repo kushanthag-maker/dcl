@@ -209,33 +209,49 @@ async function useMongoAuthState(mongoUri, sessionId) {
 
   await collection.createIndex({ sessionId: 1, key: 1 }, { unique: true }).catch(function () {});
 
+  // High-performance in-memory key cache to prevent decryption delays
+  var keyCache = new Map();
+
   var writeData = async function (key, data) {
-    await collection.updateOne(
-      { sessionId: sessionId, key: key },
-      {
-        $set: {
-          sessionId: sessionId,
-          key: key,
-          data: JSON.stringify(data, BufferJSON.replacer),
-          updatedAt: new Date(),
+    keyCache.set(key, data);
+    try {
+      await collection.updateOne(
+        { sessionId: sessionId, key: key },
+        {
+          $set: {
+            sessionId: sessionId,
+            key: key,
+            data: JSON.stringify(data, BufferJSON.replacer),
+            updatedAt: new Date(),
+          },
         },
-      },
-      { upsert: true }
-    );
+        { upsert: true }
+      );
+    } catch (e) {
+      console.error('[MongoDB] writeData error:', e.message);
+    }
   };
 
   var readData = async function (key) {
+    if (keyCache.has(key)) {
+      return keyCache.get(key);
+    }
     var doc = await collection.findOne({ sessionId: sessionId, key: key });
     if (!doc || !doc.data) return null;
     try {
-      return JSON.parse(doc.data, BufferJSON.reviver);
+      var parsed = JSON.parse(doc.data, BufferJSON.reviver);
+      keyCache.set(key, parsed);
+      return parsed;
     } catch (e) {
       return null;
     }
   };
 
   var removeData = async function (key) {
-    await collection.deleteOne({ sessionId: sessionId, key: key });
+    keyCache.delete(key);
+    try {
+      await collection.deleteOne({ sessionId: sessionId, key: key });
+    } catch (_) {}
   };
 
   var creds = (await readData('creds')) || initAuthCreds();
@@ -246,25 +262,66 @@ async function useMongoAuthState(mongoUri, sessionId) {
       keys: {
         get: async function (type, ids) {
           var data = {};
-          await Promise.all(
-            ids.map(async function (id) {
-              var value = await readData(type + '-' + id);
-              if (value) data[id] = value;
-            })
-          );
+          var missingIds = [];
+
+          // 1. Fetch from fast in-memory key cache first
+          for (var i = 0; i < ids.length; i++) {
+            var id = ids[i];
+            var fullKey = type + '-' + id;
+            if (keyCache.has(fullKey)) {
+              data[id] = keyCache.get(fullKey);
+            } else {
+              missingIds.push(id);
+            }
+          }
+
+          if (missingIds.length === 0) {
+            return data;
+          }
+
+          // 2. Batch query MongoDB with $in for missing keys in ONE fast trip
+          var queryKeys = missingIds.map(function (mid) {
+            return type + '-' + mid;
+          });
+          try {
+            var docs = await collection
+              .find({ sessionId: sessionId, key: { $in: queryKeys } })
+              .toArray();
+
+            for (var d = 0; d < docs.length; d++) {
+              var doc = docs[d];
+              if (doc && doc.data) {
+                try {
+                  var val = JSON.parse(doc.data, BufferJSON.reviver);
+                  var realId = doc.key.slice(type.length + 1);
+                  keyCache.set(doc.key, val);
+                  data[realId] = val;
+                } catch (_) {}
+              }
+            }
+          } catch (e) {
+            console.error('[MongoDB] batch keys.get error:', e.message);
+          }
+
           return data;
         },
-        set: async function (data) {
+        set: async function (newData) {
           var tasks = [];
-          var categories = Object.keys(data);
+          var categories = Object.keys(newData);
           for (var i = 0; i < categories.length; i++) {
             var category = categories[i];
-            var ids = Object.keys(data[category]);
+            var ids = Object.keys(newData[category]);
             for (var j = 0; j < ids.length; j++) {
               var id = ids[j];
-              var value = data[category][id];
+              var value = newData[category][id];
               var key = category + '-' + id;
-              tasks.push(value ? writeData(key, value) : removeData(key));
+              if (value) {
+                keyCache.set(key, value);
+                tasks.push(writeData(key, value));
+              } else {
+                keyCache.delete(key);
+                tasks.push(removeData(key));
+              }
             }
           }
           await Promise.all(tasks);
@@ -275,6 +332,7 @@ async function useMongoAuthState(mongoUri, sessionId) {
       await writeData('creds', creds);
     },
     clearSession: async function () {
+      keyCache.clear();
       await collection.deleteMany({ sessionId: sessionId });
       console.log(chalk.yellow('[MongoDB] Session ' + sessionId + ' cleared'));
     },

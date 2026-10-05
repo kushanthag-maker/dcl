@@ -3,6 +3,23 @@ const logger = require('../lib/logger');
 const { getCommand } = require('../lib/commandHandler');
 const { isPanelReply } = require('../lib/settingsPanelStore');
 const { getSettings } = require('../lib/botSettings');
+const antiLinkStore = require('../lib/antiLinkStore');
+
+const groupMetaCache = new Map();
+async function getCachedGroupMetadata(sock, jid) {
+  const now = Date.now();
+  const cached = groupMetaCache.get(jid);
+  if (cached && now - cached.time < 60000) {
+    return cached.data;
+  }
+  try {
+    const data = await sock.groupMetadata(jid);
+    groupMetaCache.set(jid, { data, time: now });
+    return data;
+  } catch (e) {
+    return cached?.data || null;
+  }
+}
 
 const rateMap = new Map();
 
@@ -215,42 +232,68 @@ async function handleMessage(sock, msg, sessionId) {
 
     // AntiLink Protection Check in Groups
     const currentSettings = getSettings(sessionId);
-    if (isGroup && currentSettings.antiLink && !isFromMe) {
-      const waLinkRegex = /(chat\.whatsapp\.com\/[0-9A-Za-z]{18,28}|whatsapp\.com\/channel\/[0-9A-Za-z]{18,32}|wa\.me\/settings)/i;
+    const isAntiLinkActive = isGroup && !isFromMe && (antiLinkStore.isGroupEnabled(from) || !!currentSettings.antiLink);
+
+    if (isAntiLinkActive) {
+      const waLinkRegex = /(https?:\/\/)?(chat\.whatsapp\.com\/[0-9A-Za-z_-]{16,36}|whatsapp\.com\/channel\/[0-9A-Za-z_-]{16,36}|wa\.me\/[0-9+]+|api\.whatsapp\.com\/send|t\.me\/[0-9A-Za-z_]+|telegram\.me\/[0-9A-Za-z_]+)/i;
       const rawText = (
         msg.message?.conversation ||
         msg.message?.extendedTextMessage?.text ||
+        msg.message?.extendedTextMessage?.matchedText ||
         msg.message?.imageMessage?.caption ||
         msg.message?.videoMessage?.caption ||
+        msg.message?.documentMessage?.caption ||
         body ||
         ''
       );
       if (waLinkRegex.test(rawText)) {
         try {
-          const groupMeta = await sock.groupMetadata(from);
-          const botNum = (sock.user?.id || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
-          const botPart = groupMeta.participants.find((p) => p.id.replace(/[^0-9]/g, '') === botNum);
-          const isBotAdmin = botPart?.admin === 'admin' || botPart?.admin === 'superadmin';
+          const groupMeta = await getCachedGroupMetadata(sock, from);
+          if (groupMeta && groupMeta.participants) {
+            const botNum = (sock.user?.id || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+            const botLid = sock.user?.lid ? sock.user.lid.split('@')[0].split(':')[0].replace(/[^0-9]/g, '') : null;
+            const senderNum = senderNumber.replace(/[^0-9]/g, '');
+            const senderLid = msg.key.participant?.includes('@lid')
+              ? msg.key.participant.split('@')[0].split(':')[0].replace(/[^0-9]/g, '')
+              : null;
 
-          const senderNum = senderNumber.replace(/[^0-9]/g, '');
-          const senderPart = groupMeta.participants.find((p) => p.id.replace(/[^0-9]/g, '') === senderNum);
-          const ownerNum = (config.ownerNumber || '').replace(/[^0-9]/g, '');
-          const isSenderAdmin =
-            senderPart?.admin === 'admin' ||
-            senderPart?.admin === 'superadmin' ||
-            (ownerNum && senderNum === ownerNum);
+            const botPart = groupMeta.participants.find((p) => {
+              const pNum = p.id.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+              return pNum === botNum || (botLid && pNum === botLid);
+            });
+            const isBotAdmin = botPart?.admin === 'admin' || botPart?.admin === 'superadmin';
 
-          if (!isSenderAdmin && isBotAdmin) {
-            try {
-              await sock.sendMessage(from, { delete: msg.key });
-            } catch (_) {}
-            try {
-              await sock.sendMessage(from, {
-                text: `⚠️ @${senderNumber} *Links are strictly forbidden in this group!* 🚫\n_Message deleted by AntiLink protection._`,
-                mentions: [sender],
-              });
-            } catch (_) {}
-            return;
+            const senderPart = groupMeta.participants.find((p) => {
+              const pNum = p.id.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+              return pNum === senderNum || (senderLid && pNum === senderLid);
+            });
+            const ownerNum = (config.ownerNumber || '').replace(/[^0-9]/g, '');
+            const isSenderAdmin =
+              senderPart?.admin === 'admin' ||
+              senderPart?.admin === 'superadmin' ||
+              (ownerNum && senderNum === ownerNum);
+
+            if (!isSenderAdmin) {
+              if (isBotAdmin) {
+                try {
+                  await sock.sendMessage(from, { delete: msg.key });
+                } catch (_) {}
+                try {
+                  await sock.sendMessage(from, {
+                    text: `🚫 @${senderNumber} *Links are strictly forbidden in this group!* 🚫\n_Message deleted by AntiLink protection._`,
+                    mentions: [sender],
+                  });
+                } catch (_) {}
+              } else {
+                try {
+                  await sock.sendMessage(from, {
+                    text: `⚠️ @${senderNumber} *Warning:* Group links are prohibited in this group! 🚫\n\n_Admins: Please promote the bot to Group Admin so it can automatically delete link messages._`,
+                    mentions: [sender],
+                  });
+                } catch (_) {}
+              }
+              return;
+            }
           }
         } catch (err) {
           logger.warn('AntiLink check error: ' + err.message);
