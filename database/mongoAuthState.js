@@ -256,6 +256,37 @@ async function useMongoAuthState(mongoUri, sessionId) {
 
   var creds = (await readData('creds')) || initAuthCreds();
 
+  var clearCorruptedKeys = async function (targetId) {
+    if (!targetId) return;
+    var raw = String(targetId);
+    var cleanId = raw.replace(/[^0-9]/g, '');
+    var possibleKeys = [
+      'session-' + raw,
+      'session-' + cleanId,
+      'session-' + cleanId + '.1',
+      'session-' + raw + '.1',
+      'sender-key-' + raw,
+      'sender-key-memory-' + raw,
+      raw,
+    ];
+
+    for (var i = 0; i < possibleKeys.length; i++) {
+      keyCache.delete(possibleKeys[i]);
+    }
+
+    try {
+      await collection.deleteMany({
+        sessionId: sessionId,
+        key: { $in: possibleKeys },
+      });
+    } catch (_) {}
+  };
+
+  try {
+    const { registerSessionCleaner } = require('../lib/signalAutoHeal');
+    registerSessionCleaner(clearCorruptedKeys);
+  } catch (_) {}
+
   return {
     state: {
       creds: creds,

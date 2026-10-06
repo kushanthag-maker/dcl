@@ -4,6 +4,7 @@
  */
 
 console.log('[BOOT] Starting DCL MINI Multi-Session...');
+require('./lib/signalAutoHeal');
 console.log('[BOOT] Node version:', process.version);
 console.log('[BOOT] PORT:', process.env.PORT || 'not set');
 
