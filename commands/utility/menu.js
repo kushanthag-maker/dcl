@@ -7,6 +7,7 @@ const config = require('../../config');
 const { getSettings, updateSettings } = require('../../lib/botSettings');
 const { getAllCommands, getCommandsByCategory } = require('../../lib/commandHandler');
 const { sendQuickReplies } = require('../../lib/sendButtons');
+const { rememberPanel } = require('../../lib/settingsPanelStore');
 const moment = require('moment-timezone');
 
 const MENU_VIDEO = 'https://files.catbox.moe/jz1qbc.mp4';
@@ -349,7 +350,10 @@ function categoryCommandsText(catKey, prefix, sessionId, requestedStyle) {
 function resolveCategoryKey(input) {
   if (!input) return null;
   const raw = String(input).trim();
-  const numMap = { '1': 'download', '2': 'ai', '3': 'group', '4': 'utility', '5': 'fun', '6': 'owner' };
+  const numMap = {
+    '1': 'download', '2': 'ai', '3': 'group', '4': 'utility', '5': 'fun', '6': 'owner',
+    '1️⃣': 'download', '2️⃣': 'ai', '3️⃣': 'group', '4️⃣': 'utility', '5️⃣': 'fun', '6️⃣': 'owner',
+  };
   if (numMap[raw]) return numMap[raw];
 
   let str = raw.replace(/^dqcat_/, '');
@@ -452,7 +456,7 @@ async function showMain(sock, msg, from, sessionId, requestedStyle) {
     }
 
     try {
-      return await sendMainMenu(sock, from, {
+      const sent = await sendMainMenu(sock, from, {
         text: menuText,
         footer: '𓆩🌸 DARK QUEEN V2 · ROYAL EDITION 🌸𓆪',
         buttonText: '📂 Select Category',
@@ -460,6 +464,10 @@ async function showMain(sock, msg, from, sessionId, requestedStyle) {
         imageUrl: logo,
         quoted: msg,
       });
+      if (sent?.key?.id) {
+        try { rememberPanel(from, sent.key.id, 'menu'); } catch (_) {}
+      }
+      return sent;
     } catch (btnErr) {
       // Fall through to regular message
     }
@@ -467,7 +475,7 @@ async function showMain(sock, msg, from, sessionId, requestedStyle) {
 
   // Send image caption with text fallback if rate-limited or upload fails
   try {
-    return await sock.sendMessage(
+    const sent = await sock.sendMessage(
       from,
       {
         image: { url: logo },
@@ -475,13 +483,21 @@ async function showMain(sock, msg, from, sessionId, requestedStyle) {
       },
       { quoted: msg }
     );
+    if (sent?.key?.id) {
+      try { rememberPanel(from, sent.key.id, 'menu'); } catch (_) {}
+    }
+    return sent;
   } catch (imgErr) {
     // Graceful fallback to text prevents rate-overlimit crash
-    return await sock.sendMessage(
+    const sent = await sock.sendMessage(
       from,
       { text: menuText },
       { quoted: msg }
     );
+    if (sent?.key?.id) {
+      try { rememberPanel(from, sent.key.id, 'menu'); } catch (_) {}
+    }
+    return sent;
   }
 }
 

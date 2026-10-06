@@ -16,7 +16,8 @@
       "antiDelete": false,
       "antiLink": true,
       "buttons": true,
-      "menuStyle": "royal"
+      "menuStyle": "royal",
+      "workMode": "private"
     },
     "test_session": {
       "botName": "Dark Queen",
@@ -94,6 +95,16 @@
       "buttons": true,
       "menuStyle": "royal",
       "workMode": "inbox"
+    },
+    "test_suite_session": {
+      "botName": "Dark Queen",
+      "logo": "https://files.catbox.moe/yjyx4x.webp",
+      "statusSeen": false,
+      "antiDelete": false,
+      "antiLink": false,
+      "buttons": true,
+      "menuStyle": "royal",
+      "workMode": "public"
     }
   },
   "phoneMap": {

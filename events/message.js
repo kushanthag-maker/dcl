@@ -60,18 +60,27 @@ function unwrapMessage(msg) {
 /** Extract interactive reply id (buttons / list / native flow) */
 function extractInteractiveId(msg) {
   const m = unwrapMessage(msg);
+  if (!m) return null;
+
   if (m.buttonsResponseMessage?.selectedButtonId) {
-    return m.buttonsResponseMessage.selectedButtonId;
+    return String(m.buttonsResponseMessage.selectedButtonId).trim();
+  }
+  if (m.buttonsResponseMessage?.selectedDisplayText) {
+    return String(m.buttonsResponseMessage.selectedDisplayText).trim();
   }
   if (m.templateButtonReplyMessage?.selectedId) {
-    return m.templateButtonReplyMessage.selectedId;
+    return String(m.templateButtonReplyMessage.selectedId).trim();
+  }
+  if (m.templateButtonReplyMessage?.selectedDisplayText) {
+    return String(m.templateButtonReplyMessage.selectedDisplayText).trim();
   }
   if (m.listResponseMessage?.singleSelectReply?.selectedRowId) {
-    return m.listResponseMessage.singleSelectReply.selectedRowId;
+    return String(m.listResponseMessage.singleSelectReply.selectedRowId).trim();
   }
   if (m.listResponseMessage?.title) {
-    return m.listResponseMessage.title;
+    return String(m.listResponseMessage.title).trim();
   }
+
   // native flow / interactive response (list + quick reply)
   const ir = m.interactiveResponseMessage;
   if (ir) {
@@ -80,71 +89,97 @@ function extractInteractiveId(msg) {
     if (raw) {
       try {
         const p = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        // common shapes
-        if (p.id) return String(p.id);
-        if (p.selected_row_id) return String(p.selected_row_id);
-        if (p.selectedRowId) return String(p.selectedRowId);
-        if (p.row_id) return String(p.row_id);
-        if (p.rowId) return String(p.rowId);
-        if (p.button_id) return String(p.button_id);
-        if (p.selectedId) return String(p.selectedId);
-        if (p.title) return String(p.title);
-        // nested
-        if (p.params && p.params.id) return String(p.params.id);
-        if (p.response && p.response.id) return String(p.response.id);
+        if (p.id) return String(p.id).trim();
+        if (p.selected_row_id) return String(p.selected_row_id).trim();
+        if (p.selectedRowId) return String(p.selectedRowId).trim();
+        if (p.row_id) return String(p.row_id).trim();
+        if (p.rowId) return String(p.rowId).trim();
+        if (p.button_id) return String(p.button_id).trim();
+        if (p.selectedId) return String(p.selectedId).trim();
+        if (p.params && p.params.id) return String(p.params.id).trim();
+        if (p.response && p.response.id) return String(p.response.id).trim();
         for (const k of Object.keys(p)) {
           const v = p[k];
-          if (typeof v === 'string' && (v.startsWith('dqcat_') || v.startsWith('dqmenu_') || v.startsWith('dqcmd_') || v.startsWith('dqset_') || v.startsWith('csub_') || v.startsWith('mbox_') || v.startsWith('ssub_'))) {
-            return v;
+          if (typeof v === 'string') {
+            if (
+              v.startsWith('dqcat_') ||
+              v.startsWith('dqmenu_') ||
+              v.startsWith('dqcmd_') ||
+              v.startsWith('dqset_') ||
+              v.startsWith('dqtheme_') ||
+              v.startsWith('csub_') ||
+              v.startsWith('mbox_') ||
+              v.startsWith('ssub_')
+            ) {
+              return v.trim();
+            }
           }
         }
+        if (p.title) return String(p.title).trim();
       } catch (_) {}
     }
-    if (ir.body && ir.body.text) return ir.body.text;
+    if (ir.body && ir.body.text) return String(ir.body.text).trim();
+    if (ir.title) return String(ir.title).trim();
   }
   return null;
 }
 
 function extractBody(msg) {
   const m = unwrapMessage(msg);
-  const messageType = Object.keys(m || {})[0];
-  let body = '';
+  if (!m) return '';
 
-  if (messageType === 'conversation') body = m.conversation || '';
-  else if (messageType === 'extendedTextMessage') body = m.extendedTextMessage?.text || '';
-  else if (messageType === 'imageMessage') body = m.imageMessage?.caption || '';
-  else if (messageType === 'videoMessage') body = m.videoMessage?.caption || '';
-  else if (messageType === 'buttonsResponseMessage') {
-    body =
-      m.buttonsResponseMessage?.selectedButtonId ||
-      m.buttonsResponseMessage?.selectedDisplayText ||
-      '';
-  } else if (messageType === 'listResponseMessage') {
-    body =
-      m.listResponseMessage?.singleSelectReply?.selectedRowId ||
-      m.listResponseMessage?.title ||
-      '';
-  } else if (messageType === 'templateButtonReplyMessage') {
-    body =
-      m.templateButtonReplyMessage?.selectedId ||
-      m.templateButtonReplyMessage?.selectedDisplayText ||
-      '';
-  } else if (messageType === 'interactiveResponseMessage') {
-    body = extractInteractiveId(msg) || '';
+  // 1. Interactive button / list row ID
+  const interId = extractInteractiveId(msg);
+  if (interId) return interId;
+
+  // 2. Direct property checking (never Object.keys[0] which can be messageContextInfo)
+  if (typeof m.conversation === 'string' && m.conversation) {
+    return m.conversation.trim();
+  }
+  if (m.extendedTextMessage?.text) {
+    return m.extendedTextMessage.text.trim();
+  }
+  if (m.imageMessage?.caption) {
+    return m.imageMessage.caption.trim();
+  }
+  if (m.videoMessage?.caption) {
+    return m.videoMessage.caption.trim();
+  }
+  if (m.documentMessage?.caption) {
+    return m.documentMessage.caption.trim();
+  }
+  if (m.buttonsResponseMessage?.selectedButtonId) {
+    return m.buttonsResponseMessage.selectedButtonId.trim();
+  }
+  if (m.buttonsResponseMessage?.selectedDisplayText) {
+    return m.buttonsResponseMessage.selectedDisplayText.trim();
+  }
+  if (m.listResponseMessage?.singleSelectReply?.selectedRowId) {
+    return m.listResponseMessage.singleSelectReply.selectedRowId.trim();
+  }
+  if (m.listResponseMessage?.title) {
+    return m.listResponseMessage.title.trim();
+  }
+  if (m.templateButtonReplyMessage?.selectedId) {
+    return m.templateButtonReplyMessage.selectedId.trim();
+  }
+  if (m.templateButtonReplyMessage?.selectedDisplayText) {
+    return m.templateButtonReplyMessage.selectedDisplayText.trim();
+  }
+  if (m.interactiveResponseMessage?.body?.text) {
+    return m.interactiveResponseMessage.body.text.trim();
   }
 
-  if (!body) {
-    const interId = extractInteractiveId(msg);
-    if (interId) body = interId;
-  }
-
-  return (body || '').trim();
+  return '';
 }
 
 function resolveCategoryKey(input) {
   if (!input) return null;
   const raw = String(input).trim();
-  const numMap = { '1': 'download', '2': 'ai', '3': 'group', '4': 'utility', '5': 'fun', '6': 'owner' };
+  const numMap = {
+    '1': 'download', '2': 'ai', '3': 'group', '4': 'utility', '5': 'fun', '6': 'owner',
+    '1️⃣': 'download', '2️⃣': 'ai', '3️⃣': 'group', '4️⃣': 'utility', '5️⃣': 'fun', '6️⃣': 'owner',
+  };
   if (numMap[raw]) return numMap[raw];
 
   let str = raw.replace(/^dqcat_/, '');
@@ -323,6 +358,18 @@ async function handleMessage(sock, msg, sessionId) {
     let commandName = '';
     let args = [];
 
+    // Normalize emoji numbers (e.g. 1️⃣ -> 1)
+    const emojiMap = {
+      '1️⃣': '1', '2️⃣': '2', '3️⃣': '3', '4️⃣': '4', '5️⃣': '5', '6️⃣': '6', '7️⃣': '7', '8️⃣': '8', '9️⃣': '9'
+    };
+    if (emojiMap[body]) {
+      body = emojiMap[body];
+    }
+    const matchNumPrefix = body.match(/^([1-6])[\.\s]+[a-zA-Z]+/);
+    if (matchNumPrefix) {
+      body = matchNumPrefix[1];
+    }
+
     // 1) Interactive id routing (works even without prefix)
     const routed = routeInteractive(body);
     if (routed) {
@@ -330,36 +377,30 @@ async function handleMessage(sock, msg, sessionId) {
       args = routed.args;
     } else if (/^\d+$/.test(body)) {
       // 1b) Active movie selection / direct quality pick for all movie commands
-      const cinesubz = require('../commands/download/cinesubz');
-      const moviebox = require('../commands/download/moviebox');
-      const ssub = require('../commands/download/ssub');
+      const cinesubz = getCommand('cinesubz') || require('../commands/download/cinesubz');
+      const moviebox = getCommand('moviebox') || require('../commands/download/moviebox');
+      const ssub = getCommand('ssub') || require('../commands/download/ssub');
 
-      if (cinesubz.hasPending && cinesubz.hasPending(from)) {
+      if (cinesubz && cinesubz.hasPending && cinesubz.hasPending(from)) {
         commandName = 'cinesubz';
         args = [body];
-      } else if (moviebox.hasPending && moviebox.hasPending(from)) {
+      } else if (moviebox && moviebox.hasPending && moviebox.hasPending(from)) {
         commandName = 'moviebox';
         args = [body];
-      } else if (ssub.hasPending && ssub.hasPending(from)) {
+      } else if (ssub && ssub.hasPending && ssub.hasPending(from)) {
         commandName = 'ssub';
         args = [body];
-      } else if (/^[1-9]$/.test(body) && isPanelReply(msg)) {
+      } else if (/^[1-9]$/.test(body) && isPanelReply(msg, 'settings')) {
         commandName = 'settings';
         args = ['num', body];
       } else if (/^[1-6]$/.test(body)) {
         const catMap = { '1': 'download', '2': 'ai', '3': 'group', '4': 'utility', '5': 'fun', '6': 'owner' };
         commandName = 'menu';
         args = ['cat', catMap[body]];
+      } else if (body === '7') {
+        commandName = 'settings';
+        args = ['num', '7'];
       }
-    } else if (/^[1-9]$/.test(body) && isPanelReply(msg)) {
-      // 1c) Settings panel number reply (reply "1" / "2" to the panel)
-      commandName = 'settings';
-      args = ['num', body];
-    } else if (/^[1-6]$/.test(body)) {
-      // 1d) Menu category number reply (reply "1" - "6" to the category dashboard)
-      const catMap = { '1': 'download', '2': 'ai', '3': 'group', '4': 'utility', '5': 'fun', '6': 'owner' };
-      commandName = 'menu';
-      args = ['cat', catMap[body]];
     } else if (body.startsWith(config.prefix || '.')) {
       // 2) Normal prefix commands
       const parts = body.slice((config.prefix || '.').length).trim().split(/\s+/);

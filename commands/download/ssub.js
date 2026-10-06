@@ -257,7 +257,7 @@ function setSessionPending(from, data) {
 /* ---------------- Main Command Object ---------------- */
 module.exports = {
   name: 'ssub',
-  aliases: ['sinhalasub', 'sublk', 'sinhalasubzlk'],
+  aliases: ['sinhalasub', 'sublk', 'sinhalasubzlk', 'baiscope'],
   description: 'Search & download SinhalaSub movies as MP4 document in WhatsApp',
   category: 'download',
 

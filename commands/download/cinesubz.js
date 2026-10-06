@@ -69,7 +69,11 @@ async function fetchSearch(query) {
       const res = await axios.get(url, {
         params: { q: query, api_key: API_KEY },
         timeout: 45000,
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        headers: {
+          'X-API-Key': API_KEY,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+          Accept: 'application/json',
+        },
         validateStatus: () => true,
       });
       if (res.status === 200 && res.data && res.data.status === true) {
@@ -93,7 +97,11 @@ async function fetchInfo(targetUrl) {
       const res = await axios.get(url, {
         params: { q: targetUrl, api_key: API_KEY },
         timeout: 60000,
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        headers: {
+          'X-API-Key': API_KEY,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+          Accept: 'application/json',
+        },
         validateStatus: () => true,
       });
       if (res.status === 200 && res.data && res.data.status === true && res.data.data) {
@@ -305,7 +313,7 @@ function setSessionPending(from, data) {
 /* ---------------- Main Command Object ---------------- */
 module.exports = {
   name: 'cinesubz',
-  aliases: ['csub', 'sinhalasubz', 'movie'],
+  aliases: ['csub', 'sinhalasubz', 'movie', 'movies', 'film'],
   description: 'Search & download CineSubz Sinhala Sub movies as MP4 document in WhatsApp',
   category: 'download',
 

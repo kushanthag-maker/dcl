@@ -93,7 +93,7 @@ async function searchApi(q) {
   const res = await axios.get(SEARCH_API, {
     params: { q: q, api_key: API_KEY },
     timeout: 45000,
-    headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
+    headers: { 'X-API-Key': API_KEY, 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
     validateStatus: function () {
       return true;
     },
@@ -120,7 +120,7 @@ async function infoApi(pageUrl) {
   const res = await axios.get(INFO_API, {
     params: { q: pageUrl, api_key: API_KEY },
     timeout: 120000,
-    headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
+    headers: { 'X-API-Key': API_KEY, 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
     validateStatus: function () {
       return true;
     },
