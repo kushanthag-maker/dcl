@@ -390,6 +390,33 @@ async function handleMessage(sock, msg, sessionId) {
     const ownerNum = (config.ownerNumber || '').replace(/[^0-9]/g, '');
     const isOwner = isFromMe || (ownerNum && senderNumber === ownerNum);
 
+    // Bot Work Mode enforcement (public, private, inbox)
+    const workMode = (currentSettings && currentSettings.workMode) || 'public'; // 'public' | 'private' | 'inbox'
+
+    if (!isOwner) {
+      if (workMode === 'private') {
+        try {
+          await sock.sendMessage(
+            from,
+            { text: '🔒 *Dark Queen is currently in Private Mode.*\nOnly the bot owner can use commands.' },
+            { quoted: msg }
+          );
+        } catch (_) {}
+        return;
+      }
+
+      if (workMode === 'inbox' && isGroup) {
+        try {
+          await sock.sendMessage(
+            from,
+            { text: '📥 *Dark Queen is currently in Inbox-Only Mode.*\nCommands can only be used in private chat (DM).' },
+            { quoted: msg }
+          );
+        } catch (_) {}
+        return;
+      }
+    }
+
     if (!isOwner && !checkRateLimit(sender)) {
       try {
         await sock.sendMessage(from, { text: 'Rate limit exceeded. Please wait.' }, { quoted: msg });
@@ -426,6 +453,7 @@ async function handleMessage(sock, msg, sessionId) {
       body,
       config,
       sessionId: sessionId || null,
+      commandName,
     });
   } catch (err) {
     if (err && err.message && err.message.includes('rate-overlimit')) {

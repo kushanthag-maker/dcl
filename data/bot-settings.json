@@ -44,6 +44,56 @@
       "antiLink": false,
       "buttons": false,
       "menuStyle": "royal"
+    },
+    "test_mode_session": {
+      "botName": "Dark Queen",
+      "logo": "https://files.catbox.moe/yjyx4x.webp",
+      "statusSeen": false,
+      "antiDelete": false,
+      "antiLink": false,
+      "buttons": false,
+      "menuStyle": "royal",
+      "workMode": "public"
+    },
+    "test_debug": {
+      "botName": "Dark Queen",
+      "logo": "https://files.catbox.moe/yjyx4x.webp",
+      "statusSeen": false,
+      "antiDelete": false,
+      "antiLink": false,
+      "buttons": true,
+      "menuStyle": "royal",
+      "workMode": "private"
+    },
+    "test_debug_2": {
+      "botName": "Dark Queen",
+      "logo": "https://files.catbox.moe/yjyx4x.webp",
+      "statusSeen": false,
+      "antiDelete": false,
+      "antiLink": false,
+      "buttons": true,
+      "menuStyle": "royal",
+      "workMode": "private"
+    },
+    "test_check": {
+      "botName": "Dark Queen",
+      "logo": "https://files.catbox.moe/yjyx4x.webp",
+      "statusSeen": false,
+      "antiDelete": false,
+      "antiLink": false,
+      "buttons": true,
+      "menuStyle": "royal",
+      "workMode": "inbox"
+    },
+    "test_step": {
+      "botName": "Dark Queen",
+      "logo": "https://files.catbox.moe/yjyx4x.webp",
+      "statusSeen": false,
+      "antiDelete": false,
+      "antiLink": false,
+      "buttons": true,
+      "menuStyle": "royal",
+      "workMode": "inbox"
     }
   },
   "phoneMap": {
