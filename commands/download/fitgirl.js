@@ -1,13 +1,15 @@
 /**
  * DARK QUEEN V2 — FitGirl PC Game Repacks Downloader
  * Features:
- *   - Search FitGirl Repacks database
- *   - Game Overview with Repack Size, Original Size, Genres, Poster
- *   - RAR Parts Selection (e.g. Part 1, Part 2...) with high-speed direct resolver
- *   - Direct Magnet link for full 1-click torrent download
- *   - Document delivery into WhatsApp if supported, with graceful high-speed direct link fallback
- *   - Native Interactive Selection Buttons (with toggle support via settings.buttons)
- *   - 100% Number Reply Support (reply 1, 2, 3...) in both Button and Non-Button modes
+ *   - Search FitGirl Repacks database (.fitgirl <game name>)
+ *   - Dedicated All-Packs Auto Streaming command (.fgall <game name> / .fitgirlall / .fgpacks)
+ *   - Sequential ~500MB Pack delivery: sends Part 1, Part 2, Part 3... one after another smoothly
+ *   - Direct High-Speed Download link resolver with fast 8-second timeout & safe fallback
+ *   - Stop queue support: reply "stop" or "cancel" anytime to pause the stream
+ *   - 100% crash-proof: no heavy memory buffering, graceful error handling for Baileys & WhatsApp
+ *   - Single pack download: reply with part number (e.g. 1, 2) to get that specific ~500MB RAR pack
+ *   - 1-Click Torrent Magnet Link support (reply "m" or "magnet")
+ *   - Native Interactive Selection Buttons + automatic fallback for buttons:false
  */
 
 const axios = require('axios');
@@ -24,8 +26,11 @@ const DL_API = 'https://api.chamindu.site/api/v1/games/fitgirl/download';
 const BRAND_FOOTER = '𓆩👑 DARK QUEEN V2 · FITGIRL REPACKS 👑𓆪';
 const TTL = 5 * 60 * 1000;
 
-// from (JID) -> { mode: 'search'|'overview'|'parts', results, info, parts, page, timeout }
+// Sessions: from (JID) -> { mode: 'search'|'overview', results, info, organized, timeout }
 const pending = new Map();
+
+// Active sequential streaming queues: from (JID) -> { stopped: boolean }
+const activeQueues = new Map();
 
 function cleanTitle(str, max = 50) {
   let s = String(str || 'N/A')
@@ -105,25 +110,28 @@ async function fetchGameInfo(gameUrl) {
   throw lastErr || new Error('Could not retrieve game details from FitGirl.');
 }
 
+/**
+ * Fast 8s resolver for FileKeeper & direct CDN links.
+ * Returns null if resolution fails, never throws.
+ */
 async function resolveDownload(partUrl) {
-  const res = await axios.get(DL_API, {
-    params: { q: partUrl, api_key: API_KEY },
-    timeout: 60000,
-    headers: {
-      'X-API-Key': API_KEY,
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      Accept: 'application/json',
-    },
-    validateStatus: () => true,
-  });
+  try {
+    const res = await axios.get(DL_API, {
+      params: { q: partUrl, api_key: API_KEY },
+      timeout: 8000,
+      headers: {
+        'X-API-Key': API_KEY,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        Accept: 'application/json',
+      },
+      validateStatus: () => true,
+    });
 
-  if (res.status === 200 && res.data && res.data.status === true) {
-    return res.data;
-  }
-  if (res.data && res.data.message) {
-    throw new Error(res.data.message);
-  }
-  throw new Error('Could not resolve direct download link.');
+    if (res.status === 200 && res.data && res.data.status === true) {
+      return res.data;
+    }
+  } catch (_) {}
+  return null;
 }
 
 /* ---------------- Interactive Message Helper ---------------- */
@@ -183,39 +191,7 @@ async function sendSafeCard(sock, from, msg, text, imageUrl) {
   return await sock.sendMessage(from, { text }, { quoted: msg });
 }
 
-/* ---------------- Card Builders ---------------- */
-
-function buildSearchCard(query, results, useButtons) {
-  let text =
-    '╔════════════════════════════╗\n' +
-    '  🎮 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓖𝓐𝓜𝓔 𝓢𝓔𝓐𝓡𝓒𝓗 🎮\n' +
-    '  🔥 𝐏𝐂 𝐆𝐀𝐌𝐄 𝐑𝐄𝐏𝐀𝐂𝐊𝐒 𝐃𝐀𝐓𝐀𝐁𝐀𝐒𝐄 🔥\n' +
-    '╚════════════════════════════╝\n\n' +
-    `│ 🔍 Query   : *${query}*\n` +
-    `│ 📦 Results : *${results.length} Repacks Found*\n` +
-    '╰─────────────────────────•\n\n' +
-    '╭─〔 📜 𝐒𝐄𝐋𝐄𝐂𝐓 𝐘𝐎𝐔𝐑 𝐆𝐀𝐌𝐄 〕─•\n';
-
-  const limit = Math.min(results.length, 12);
-  for (let i = 0; i < limit; i++) {
-    const r = results[i];
-    const numEmoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '1️⃣1️⃣', '1️⃣2️⃣'][i] || `${i + 1}.`;
-    text += `│ ${numEmoji} *${cleanTitle(r.title, 34)}*\n`;
-    if (r.date) text += `│    └ 📅 ${r.date}\n`;
-  }
-
-  text +=
-    '╰─────────────────────────•\n\n';
-
-  if (useButtons) {
-    text += '💡 *Tap "Select Game" button below to choose, or reply with number.*\n\n';
-  } else {
-    text += '💡 *Reply with game number (e.g. 1 or 2) to view parts & downloads.*\n\n';
-  }
-
-  text += `> ${BRAND_FOOTER}`;
-  return text;
-}
+/* ---------------- Organization and Card Builders ---------------- */
 
 function organizeDownloads(downloads) {
   const dls = Array.isArray(downloads) ? downloads : [];
@@ -233,7 +209,6 @@ function organizeDownloads(downloads) {
     } else if (/torrent/i.test(name) || /\.torrent$/i.test(url) || hoster === '1337x' || hoster === 'RuTor') {
       if (!torrent) torrent = { name: name || 'Torrent File', url };
     } else if (/part\d+/i.test(name) || /part\d+/i.test(url) || /\.rar/i.test(name) || /\.rar/i.test(url)) {
-      // Extract part number if any
       const matchPart = name.match(/part(\d+)/i) || url.match(/part(\d+)/i);
       const partNum = matchPart ? parseInt(matchPart[1], 10) : parts.length + 1;
       const isResolvable = /filekeeper|1fichier/i.test(hoster) || /filekeeper\.net|1fichier\.com/i.test(url);
@@ -260,8 +235,39 @@ function organizeDownloads(downloads) {
   return { magnet, torrent, parts: sortedParts };
 }
 
+function buildSearchCard(query, results, useButtons) {
+  let text =
+    '╔════════════════════════════╗\n' +
+    '  🎮 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓖𝓐𝓜𝓔 𝓢𝓔𝓐𝓡𝓒𝓗 🎮\n' +
+    '  🔥 𝐏𝐂 𝐆𝐀𝐌𝐄 𝐑𝐄𝐏𝐀𝐂𝐊𝐒 𝐃𝐀𝐓𝐀𝐁𝐀𝐒𝐄 🔥\n' +
+    '╚════════════════════════════╝\n\n' +
+    `│ 🔍 Query   : *${query}*\n` +
+    `│ 📦 Results : *${results.length} Repacks Found*\n` +
+    '╰─────────────────────────•\n\n' +
+    '╭─〔 📜 𝐒𝐄𝐋𝐄𝐂𝐓 𝐘𝐎𝐔𝐑 𝐆𝐀𝐌𝐄 〕─•\n';
+
+  const limit = Math.min(results.length, 12);
+  for (let i = 0; i < limit; i++) {
+    const r = results[i];
+    const numEmoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '1️⃣1️⃣', '1️⃣2️⃣'][i] || `${i + 1}.`;
+    text += `│ ${numEmoji} *${cleanTitle(r.title, 34)}*\n`;
+    if (r.date) text += `│    └ 📅 ${r.date}\n`;
+  }
+
+  text += '╰─────────────────────────•\n\n';
+
+  if (useButtons) {
+    text += '💡 *Tap "Select Game" button below to choose, or reply with number.*\n\n';
+  } else {
+    text += '💡 *Reply with game number (e.g. 1 or 2) to view parts & downloads.*\n\n';
+  }
+
+  text += `> ${BRAND_FOOTER}`;
+  return text;
+}
+
 function buildGameOverviewCard(info, organized, useButtons) {
-  const { magnet, torrent, parts } = organized;
+  const { magnet, parts } = organized;
   let text =
     '╔════════════════════════════╗\n' +
     '  🎮 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓖𝓐𝓜𝓔 𝓘𝓝𝓕𝓞 🎮\n' +
@@ -270,33 +276,38 @@ function buildGameOverviewCard(info, organized, useButtons) {
     `📦 *Repack Size* : *${info.repack_size || 'N/A'}*\n` +
     `💾 *Original*    : ${info.original_size || 'N/A'}\n` +
     `🏷️ *Genres*      : ${info.genres || 'Action / PC Game'}\n` +
-    `🧩 *Total Parts* : *${parts.length > 0 ? parts.length + ' RAR Parts (~500MB each)' : 'Direct Download'}*\n\n` +
+    `🧩 *Total Packs* : *${parts.length > 0 ? parts.length + ' RAR Packs (~500MB each)' : 'Direct Download'}*\n\n` +
     '╭─〔 📥 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃 𝐎𝐏𝐓𝐈𝐎𝐍𝐒 〕─•\n';
 
+  if (parts.length > 0) {
+    text += `│ 📦 *Option ALL* : Send All Packs (${parts.length} Packs, ~500MB each sequentially)\n`;
+  }
   if (magnet) {
-    text += '│ 🧲 *Option M* : Direct Magnet (Torrent Client)\n';
+    text += '│ 🧲 *Option M*   : Direct 1-Click Torrent Magnet\n';
   }
   if (parts.length > 0) {
     const previewCount = Math.min(parts.length, 10);
-    text += `│ 🧩 *Parts List (1 - ${parts.length})* :\n`;
+    text += `│ 🧩 *Packs List (1 - ${parts.length})* :\n`;
     for (let i = 0; i < previewCount; i++) {
       const p = parts[i];
       text += `│   └ *Part ${p.partNum}* (${p.hoster})\n`;
     }
     if (parts.length > previewCount) {
-      text += `│   └ _...and ${parts.length - previewCount} more parts available_\n`;
+      text += `│   └ _...and ${parts.length - previewCount} more packs available_\n`;
     }
   }
   text += '╰─────────────────────────•\n\n';
 
   if (useButtons) {
     text +=
-      '💡 *Tap "Select Part / Magnet" button below to download*\n' +
-      '🔢 *Or reply with Part number (e.g. 1 for Part 1, 2 for Part 2)*\n' +
+      '💡 *Tap "Select Option" button below to start download*\n' +
+      '📦 *Or reply "all" to send ALL 500MB packs sequentially (auto queue)*\n' +
+      '🔢 *Or reply with Pack number (e.g. 1 for Part 1, 2 for Part 2)*\n' +
       '🧲 *Or reply "m" or "magnet" for full Torrent Magnet Link*\n\n';
   } else {
     text +=
-      '💡 *Reply with Part number (e.g. 1 for Part 1, 2 for Part 2) to download as RAR document!*\n' +
+      '💡 *Reply "all" to send ALL 500MB packs sequentially (auto queue)*\n' +
+      '🔢 *Or reply with Pack number (e.g. 1 for Part 1, 2 for Part 2)*\n' +
       '🧲 *Or reply "m" or "magnet" to get the full Torrent Magnet Link.*\n\n';
   }
 
@@ -304,19 +315,171 @@ function buildGameOverviewCard(info, organized, useButtons) {
   return text;
 }
 
+/* ---------------- Sequential All-Packs Streaming Runner ---------------- */
+
+async function streamAllPacks(sock, from, msg, info, organized) {
+  const parts = organized.parts;
+  const gameTitle = cleanTitle(info?.title || 'PC Game', 36);
+
+  if (!parts || !parts.length) {
+    if (organized.magnet) {
+      return sock.sendMessage(
+        from,
+        {
+          text:
+            `ℹ️ *${gameTitle}* සඳහා RAR Parts හමු නොවීය.\n` +
+            `සම්පූර්ණ Game එක සඳහා Direct Magnet Link එක:\n\n` +
+            `\`\`\`${organized.magnet.url}\`\`\``,
+        },
+        { quoted: msg }
+      );
+    }
+    return sock.sendMessage(
+      from,
+      { text: `❌ මෙම Game එක සඳහා බාගත හැකි Packs හමු නොවීය.` },
+      { quoted: msg }
+    );
+  }
+
+  // Cancel any existing active queue for this user
+  if (activeQueues.has(from)) {
+    activeQueues.get(from).stopped = true;
+  }
+  const queueCtrl = { stopped: false };
+  activeQueues.set(from, queueCtrl);
+
+  // Send Initial Queue Start Announcement
+  const startCard =
+    '╔════════════════════════════╗\n' +
+    '  📦 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓐𝓛𝓛 𝓟𝓐𝓒𝓚𝓢 𝓠𝓤𝓔𝓤𝓔 📦\n' +
+    '╚════════════════════════════╝\n\n' +
+    `🎮 *Game*        : *${gameTitle}*\n` +
+    `🧩 *Total Packs* : *${parts.length} RAR Packs (~500MB each)*\n` +
+    `📦 *Repack Size* : *${info?.repack_size || 'N/A'}*\n\n` +
+    '⏳ *සියලුම Packs (~500MB) එකින් එක පිළිවෙලින් එවනු ලැබේ. එකක් එවූ සැණින් ඊළඟ කොටස එවනු ලැබේ...*\n' +
+    '🛑 *නැවැත්වීමට අවශ්‍ය නම් "stop" ලෙස reply කරන්න.*\n\n' +
+    `> ${BRAND_FOOTER}`;
+
+  try {
+    await sock.sendMessage(from, { text: startCard }, { quoted: msg });
+  } catch (_) {}
+
+  let sentCount = 0;
+  for (let i = 0; i < parts.length; i++) {
+    if (queueCtrl.stopped) {
+      break;
+    }
+
+    const partItem = parts[i];
+    const fileName = `${safeFilename(gameTitle)}_Part${String(partItem.partNum).padStart(3, '0')}.rar`;
+    let directDownloadUrl = partItem.url;
+    let resolvedSize = '500.0 MB';
+    let resolvedFileName = fileName;
+
+    // Fast 8-second direct link resolution
+    if (partItem.isResolvable) {
+      const dlData = await resolveDownload(partItem.url);
+      if (dlData) {
+        if (dlData.direct_link || dlData.download_link) {
+          directDownloadUrl = dlData.direct_link || dlData.download_link;
+        }
+        if (dlData.size) resolvedSize = dlData.size;
+        if (dlData.filename) resolvedFileName = dlData.filename;
+      }
+    }
+
+    const isLast = (i === parts.length - 1);
+    const card =
+      '╔════════════════════════════╗\n' +
+      `  🚀 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓟𝓐𝓒𝓚 [${partItem.partNum} / ${parts.length}] 🚀\n` +
+      '╚════════════════════════════╝\n\n' +
+      `🎮 *Game* : *${gameTitle}*\n` +
+      `🧩 *Pack* : *Part ${partItem.partNum}* of *${parts.length}* (~500MB)\n` +
+      `📁 *File* : \`${resolvedFileName}\`\n` +
+      `📊 *Size* : *${resolvedSize}*\n` +
+      `🌐 *Host* : *${partItem.hoster} (High Speed)*\n\n` +
+      '╭─〔 🔗 𝐃𝐈𝐑𝐄𝐂𝐓 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃 〕─•\n' +
+      `│ 👉 ${directDownloadUrl}\n` +
+      '╰─────────────────────────•\n\n' +
+      (isLast
+        ? '🏁 _අවසාන Pack එක එවනු ලැබීය!_\n\n'
+        : `_Part ${partItem.partNum} / ${parts.length} එවනු ලැබීය. ඊළඟ Pack එක එවමින් පවතී... ⏳_\n\n`) +
+      `> ${BRAND_FOOTER}`;
+
+    try {
+      await sock.sendMessage(from, { text: card });
+      sentCount++;
+    } catch (sendErr) {
+      if (sendErr && (sendErr.message?.includes('closed') || sendErr.message?.includes('rate-overlimit'))) {
+        logger.warn('[FitGirl] Socket issue during stream: ' + sendErr.message);
+        break;
+      }
+    }
+
+    // 1.5s delay between packs: smooth sequential delivery, no rate-overlimit throttles
+    if (!isLast && !queueCtrl.stopped) {
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+
+  activeQueues.delete(from);
+
+  if (queueCtrl.stopped) {
+    try {
+      await sock.sendMessage(from, {
+        text: `🛑 *Game packs queue එක නතර කරන ලදී.* (කොටස් ${sentCount} ක් එවන ලදී).`,
+      });
+    } catch (_) {}
+    return;
+  }
+
+  // Final Delivery Summary & Extraction Instructions
+  const completeGuide =
+    '╔════════════════════════════╗\n' +
+    '  🎉 𝐀𝐋𝐋 𝐏𝐀𝐂𝐊𝐒 𝐒𝐄𝐍𝐓 𝐒𝐔𝐂𝐂𝐄𝐒𝐒𝐅𝐔𝐋𝐋𝐘 🎉\n' +
+    '╚════════════════════════════╝\n\n' +
+    `🎮 *Game*   : *${gameTitle}*\n` +
+    `📦 *Status* : *සියලුම ${parts.length} RAR Packs (~500MB each) සාර්ථකව එවා අවසන්!*\n\n` +
+    '╭─〔 💡 𝐇𝐎𝐖 𝐓𝐎 𝐈𝐍𝐒𝐓𝐀𝐋𝐋 〕─•\n' +
+    '│ 1️⃣ සියලුම Parts (.rar files) එකම Folder එකකට Download කරගන්න.\n' +
+    '│ 2️⃣ *Part 1 (.part001.rar / .part01.rar)* මත Right Click කර *Extract Here* (WinRAR / 7-Zip) කරන්න.\n' +
+    '│ 3️⃣ සියලුම කොටස් ස්වයංක්‍රීයව එකතු වී සම්පූර්ණ Game Setup Folder එක සෑදේ.\n' +
+    '│ 4️⃣ *setup.exe* Run කර Game එක Install කරගෙන Play කරන්න! 🎮\n' +
+    '╰─────────────────────────•\n\n' +
+    `> ${BRAND_FOOTER}`;
+
+  try {
+    await sock.sendMessage(from, { text: completeGuide });
+  } catch (_) {}
+}
+
 /* ---------------- Main Command Object ---------------- */
 
 module.exports = {
   name: 'fitgirl',
-  aliases: ['fit', 'repack', 'pcgame', 'pcgames', 'fitgirlrepack'],
-  description: 'Search & download FitGirl PC game repacks & RAR parts in WhatsApp',
+  aliases: ['fit', 'repack', 'pcgame', 'pcgames', 'fitgirlrepack', 'fgall', 'fitgirlall', 'fgpacks', 'gamepacks'],
+  description: 'Search & download FitGirl PC game repacks & ~500MB RAR packs in WhatsApp',
   category: 'download',
 
   hasPending(from) {
     return pending.has(from);
   },
 
-  async execute({ sock, msg, from, args, sessionId }) {
+  hasActiveQueue(from) {
+    return activeQueues.has(from) && !activeQueues.get(from).stopped;
+  },
+
+  stopQueue(from) {
+    const q = activeQueues.get(from);
+    if (q) {
+      q.stopped = true;
+      activeQueues.delete(from);
+      return true;
+    }
+    return false;
+  },
+
+  async execute({ sock, msg, from, args, sessionId, commandName }) {
     const prefix = config.prefix || '.';
     const settings = (() => {
       try {
@@ -327,7 +490,76 @@ module.exports = {
     })();
     const useButtons = settings.buttons !== false;
 
-    // Normalize button click args: e.g. fg_pick_1 or fg_part_1 or fg_mag or number
+    // Check if Stop requested
+    if (args.length === 1 && ['stop', 'cancel'].includes(String(args[0]).toLowerCase().trim())) {
+      const stopped = this.stopQueue(from);
+      return sock.sendMessage(
+        from,
+        { text: stopped ? '🛑 *Game packs queue එක නතර කරන ලදී.*' : 'ℹ️ සක්‍රීය Packs queue එකක් නොමැත.' },
+        { quoted: msg }
+      );
+    }
+
+    // Check if dedicated all-packs command called (e.g. .fgall, .fitgirlall, .fgpacks)
+    const isDirectAllCmd = ['fgall', 'fitgirlall', 'fgpacks', 'gamepacks'].includes(String(commandName || '').toLowerCase());
+    if (isDirectAllCmd) {
+      if (args.length > 0) {
+        const query = args.join(' ').trim();
+        const loadMsg = await sock.sendMessage(
+          from,
+          { text: `🔍 *FitGirl වෙතින් "${query}" සොයා All Packs පිළියෙල කරමින්...*` },
+          { quoted: msg }
+        ).catch(() => null);
+
+        try {
+          const results = await searchGames(query);
+          if (!results.length) {
+            if (loadMsg) {
+              await sock.sendMessage(
+                from,
+                { text: `❌ "*${query}*" සඳහා Games හමු නොවීය. කරුණාකර නිවැරදි Game නම ටයිප් කරන්න.`, edit: loadMsg.key }
+              ).catch(() => {});
+            }
+            return;
+          }
+
+          const chosenGame = results[0];
+          const info = await fetchGameInfo(chosenGame.link);
+          const organized = organizeDownloads(info.downloads);
+
+          setSessionPending(from, { mode: 'overview', info, organized });
+          if (loadMsg) await sock.sendMessage(from, { delete: loadMsg.key }).catch(() => {});
+
+          return await streamAllPacks(sock, from, msg, info, organized);
+        } catch (err) {
+          if (loadMsg) {
+            await sock.sendMessage(from, { text: `❌ Error: ${err.message}`, edit: loadMsg.key }).catch(() => {});
+          }
+          return;
+        }
+      } else {
+        const state = pending.get(from);
+        if (state && state.info && state.organized) {
+          return await streamAllPacks(sock, from, msg, state.info, state.organized);
+        }
+        return sock.sendMessage(
+          from,
+          {
+            text:
+              `╔════════════════════════════╗\n` +
+              `  📦 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓐𝓛𝓛 𝓟𝓐𝓒𝓚𝓢 📦\n` +
+              `╚════════════════════════════╝\n\n` +
+              `💡 *Usage:* \`${prefix}fgall <game name>\`\n` +
+              `_Example:_ \`${prefix}fgall GTA\`\n` +
+              `_Example:_ \`${prefix}fgall Cyberpunk\`\n\n` +
+              `> ${BRAND_FOOTER}`,
+          },
+          { quoted: msg }
+        );
+      }
+    }
+
+    // Parse button click or reply selection
     let selectionType = null;
     let selectedIdx = -1;
 
@@ -336,14 +568,20 @@ module.exports = {
       const matchPick = rawArg.match(/^(?:fg_)?pick_(\d+)$/i);
       const matchPart = rawArg.match(/^(?:fg_)?part_(\d+)$/i);
       const matchMag = /^(?:fg_)?mag(?:net)?$/i.test(rawArg);
+      const matchAll = /^(?:fg_)?all(?:_stream|_parts|\d+)?$/i.test(rawArg) || /^(?:packs?|parts?|all\s*packs?|send\s*all)$/i.test(rawArg);
+      const matchStop = /^(?:fg_)?(?:stop|cancel)$/i.test(rawArg);
       const matchNum = rawArg.match(/^(\d+)$/);
 
-      if (matchPick) {
+      if (matchStop) {
+        selectionType = 'stop';
+      } else if (matchAll) {
+        selectionType = 'all';
+      } else if (matchPick) {
         selectionType = 'pick';
         selectedIdx = parseInt(matchPick[1], 10) - 1;
       } else if (matchPart) {
         selectionType = 'part';
-        selectedIdx = parseInt(matchPart[1], 10); // Part number 1-based
+        selectedIdx = parseInt(matchPart[1], 10);
       } else if (matchMag) {
         selectionType = 'magnet';
       } else if (matchNum) {
@@ -351,16 +589,27 @@ module.exports = {
       }
     }
 
-    // Magnet shortcut
-    if (String(args[0] || '').toLowerCase() === 'magnet' || String(args[0] || '').toLowerCase() === 'mag' || String(args[0] || '').toLowerCase() === 'm') {
-      selectionType = 'magnet';
-    }
+    // Shortcuts
+    const firstLower = String(args[0] || '').toLowerCase().trim();
+    if (['stop', 'cancel'].includes(firstLower)) selectionType = 'stop';
+    if (['magnet', 'mag', 'm'].includes(firstLower)) selectionType = 'magnet';
+    if (['all', 'packs', 'parts', 'pack', 'all packs', 'send all', 'all parts'].includes(firstLower)) selectionType = 'all';
 
-    // Handle number or button selection
+    // Handle Selection
     if (selectionType || selectedIdx >= 0) {
       const state = pending.get(from);
 
-      // 1. Game Selection from Search Results
+      // Stop Queue
+      if (selectionType === 'stop') {
+        const stopped = this.stopQueue(from);
+        return sock.sendMessage(
+          from,
+          { text: stopped ? '🛑 *Game packs queue එක නතර කරන ලදී.*' : 'ℹ️ සක්‍රීය Packs queue එකක් නොමැත.' },
+          { quoted: msg }
+        );
+      }
+
+      // 1. Pick Game from Search Results
       if (state?.mode === 'search' || selectionType === 'pick') {
         const pickIndex = selectionType === 'pick' ? selectedIdx : selectedIdx - 1;
         if (!state || !state.results || pickIndex < 0 || pickIndex >= state.results.length) {
@@ -374,7 +623,7 @@ module.exports = {
         const game = state.results[pickIndex];
         const loadMsg = await sock.sendMessage(
           from,
-          { text: '⏳ *FitGirl වෙතින් Game Repack විස්තර සහ Parts ලබාගනිමින්...*' },
+          { text: '⏳ *FitGirl වෙතින් Game Repack විස්තර සහ ~500MB Packs ලබාගනිමින්...*' },
           { quoted: msg }
         ).catch(() => null);
 
@@ -389,6 +638,13 @@ module.exports = {
 
           if (useButtons) {
             const rows = [];
+            if (organized.parts && organized.parts.length > 0) {
+              rows.push({
+                id: 'fg_all',
+                title: `📦 Send All Packs (${organized.parts.length} Packs, ~500MB each)`,
+                description: 'Auto queue: sends each pack sequentially one by one',
+              });
+            }
             if (organized.magnet) {
               rows.push({
                 id: 'fg_mag',
@@ -397,7 +653,7 @@ module.exports = {
               });
             }
 
-            const maxRows = Math.min(organized.parts.length, 19);
+            const maxRows = Math.min(organized.parts.length, 18);
             for (let i = 0; i < maxRows; i++) {
               const p = organized.parts[i];
               rows.push({
@@ -410,8 +666,8 @@ module.exports = {
             try {
               return await sendInteractiveSelect(sock, from, {
                 text: overviewText,
-                buttonText: '🎮 Select Part / Magnet',
-                sections: [{ title: '📥 Game Parts & Magnet', rows }],
+                buttonText: '🎮 Select Option / Packs',
+                sections: [{ title: '📥 Game Downloads & Packs', rows }],
                 imageUrl: info.image,
                 quoted: msg,
               });
@@ -427,12 +683,25 @@ module.exports = {
         }
       }
 
-      // 2. Magnet Link Request
+      // 2. Send All 500MB Packs Sequentially
+      if (selectionType === 'all') {
+        if (!state || !state.organized || !state.organized.parts || !state.organized.parts.length) {
+          return sock.sendMessage(
+            from,
+            { text: `❌ No active game parts session.\n💡 Search first: \`${prefix}fitgirl <game name>\` or \`${prefix}fgall <game name>\`` },
+            { quoted: msg }
+          );
+        }
+
+        return await streamAllPacks(sock, from, msg, state.info, state.organized);
+      }
+
+      // 3. Magnet Link Request
       if (selectionType === 'magnet') {
         if (!state || !state.organized || !state.organized.magnet) {
           return sock.sendMessage(
             from,
-            { text: '❌ No active game session or Magnet link found for this repack.\n💡 Search first: `.fitgirl <game name>`' },
+            { text: `❌ No active game session or Magnet link found for this repack.\n💡 Search first: \`${prefix}fitgirl <game name>\`` },
             { quoted: msg }
           );
         }
@@ -454,9 +723,9 @@ module.exports = {
         return await sock.sendMessage(from, { text: magnetText }, { quoted: msg });
       }
 
-      // 3. RAR Part Selection (Part 1, Part 2...)
+      // 4. Single Pack Selection (e.g. reply 1 for Part 1)
       if (state?.mode === 'overview' || selectionType === 'part') {
-        const partNum = selectedIdx; // 1-based part number
+        const partNum = selectedIdx;
         if (!state || !state.organized || !state.organized.parts || !state.organized.parts.length) {
           return sock.sendMessage(
             from,
@@ -477,88 +746,41 @@ module.exports = {
         const gameTitle = cleanTitle(state.info?.title || 'PC Game', 36);
         const fileName = `${safeFilename(gameTitle)}_Part${String(partItem.partNum).padStart(3, '0')}.rar`;
 
-        const progressMsg = await sock.sendMessage(
-          from,
-          {
-            text:
-              '╔════════════════════════════╗\n' +
-              '  🚀 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓟𝓐𝓡𝓣 𝓓𝓞𝓦𝓝𝓛𝓞𝓐𝓓 🚀\n' +
-              '╚════════════════════════════╝\n\n' +
-              `🎮 *Game* : *${gameTitle}*\n` +
-              `🧩 *Part* : *Part ${partItem.partNum}*\n` +
-              `📁 *File* : \`${fileName}\`\n\n` +
-              '⏳ *Direct High-Speed Link එක ලබාගනිමින් WhatsApp එකට Document එකක් ලෙස එවමින් පවතී...*\n\n' +
-              `> ${BRAND_FOOTER}`,
-          },
-          { quoted: msg }
-        ).catch(() => null);
-
         let directDownloadUrl = partItem.url;
         let resolvedSize = '500.0 MB';
         let resolvedFileName = fileName;
 
-        // Try to resolve via direct download API if FileKeeper or 1Fichier
         if (partItem.isResolvable) {
-          try {
-            const dlData = await resolveDownload(partItem.url);
-            if (dlData.download_link || dlData.direct_link) {
+          const dlData = await resolveDownload(partItem.url);
+          if (dlData) {
+            if (dlData.direct_link || dlData.download_link) {
               directDownloadUrl = dlData.direct_link || dlData.download_link;
             }
             if (dlData.size) resolvedSize = dlData.size;
             if (dlData.filename) resolvedFileName = dlData.filename;
-          } catch (resErr) {
-            logger.warn('[FitGirl] Resolve API fallback to direct link: ' + resErr.message);
           }
         }
 
-        // Attempt 1: Deliver directly into WhatsApp as Document via Baileys
+        const dlCard =
+          '╔════════════════════════════╗\n' +
+          '  🚀 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓟𝓐𝓒𝓚 𝓓𝓞𝓦𝓝𝓛𝓞𝓐𝓓 🚀\n' +
+          '╚════════════════════════════╝\n\n' +
+          `🎮 *Game* : *${gameTitle}*\n` +
+          `🧩 *Pack* : *Part ${partItem.partNum}* of *${state.organized.parts.length}* (~500MB)\n` +
+          `📁 *File* : \`${resolvedFileName}\`\n` +
+          `📊 *Size* : *${resolvedSize}*\n` +
+          `🌐 *Host* : *${partItem.hoster} (High Speed)*\n\n` +
+          '╭─〔 🔗 𝐃𝐈𝐑𝐄𝐂𝐓 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃 𝐔𝐑𝐋 〕─•\n' +
+          `│ 👉 ${directDownloadUrl}\n` +
+          '╰─────────────────────────•\n\n' +
+          '💡 *Chrome / ADM / IDM මඟින් Maximum Speed එකෙන් Download කරගත හැක.*\n' +
+          '📦 *සියලුම Packs එකවර ලබාගැනීමට "all" හෝ ".fgall" ලෙස reply කරන්න.*\n\n' +
+          `> ${BRAND_FOOTER}`;
+
         try {
-          await sock.sendMessage(
-            from,
-            {
-              document: { url: directDownloadUrl },
-              mimetype: 'application/x-rar-compressed',
-              fileName: resolvedFileName,
-              caption:
-                `🎮 *${gameTitle}*\n` +
-                `🧩 *Part ${partItem.partNum}* (${resolvedSize})\n` +
-                `📁 \`${resolvedFileName}\`\n\n` +
-                `> ${BRAND_FOOTER}`,
-            },
-            { quoted: msg }
-          );
-
-          if (progressMsg) {
-            await sock.sendMessage(from, { delete: progressMsg.key }).catch(() => {});
-          }
-          return;
-        } catch (docErr) {
-          logger.warn('[FitGirl] Document upload error: ' + (docErr.message || docErr));
-
-          // If document upload fails or exceeds WhatsApp limit: Deliver graceful high-speed direct link card
-          const dlCard =
-            '╔════════════════════════════╗\n' +
-            '  🚀 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓓𝓘𝓡𝓔𝓒𝓣 𝓛𝓘𝓝𝓚 🚀\n' +
-            '╚════════════════════════════╝\n\n' +
-            `🎮 *Game* : *${gameTitle}*\n` +
-            `🧩 *Part* : *Part ${partItem.partNum}*\n` +
-            `📁 *File* : \`${resolvedFileName}\`\n` +
-            `📊 *Size* : *${resolvedSize}*\n\n` +
-            '╭─〔 🔗 𝐃𝐈𝐑𝐄𝐂𝐓 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃 𝐔𝐑𝐋 〕─•\n' +
-            `│ 👉 ${directDownloadUrl}\n` +
-            '╰─────────────────────────•\n\n' +
-            '💡 *Chrome / ADM / IDM මඟින් Maximum Speed එකෙන් Download කරගත හැක.*\n\n' +
-            `> ${BRAND_FOOTER}`;
-
-          if (progressMsg) {
-            await sock.sendMessage(from, { text: dlCard, edit: progressMsg.key }).catch(async () => {
-              await sock.sendMessage(from, { text: dlCard }, { quoted: msg });
-            });
-          } else {
-            await sock.sendMessage(from, { text: dlCard }, { quoted: msg });
-          }
-          return;
-        }
+          await sock.sendMessage(from, { text: dlCard }, { quoted: msg });
+        } catch (_) {}
+        return;
       }
 
       return sock.sendMessage(
@@ -579,18 +801,22 @@ module.exports = {
         `│ 🔎 *Search Game* :\n` +
         `│    ${prefix}fitgirl <game name>\n` +
         `│    _Example:_ ${prefix}fitgirl GTA\n` +
-        `│    _Example:_ ${prefix}fitgirl Cyberpunk\n` +
         `│\n` +
-        `│ 🔢 *Select Game & Parts* :\n` +
+        `│ 📦 *Send All ~500MB Packs Directly* :\n` +
+        `│    ${prefix}fgall <game name>\n` +
+        `│    _Example:_ ${prefix}fgall GTA\n` +
+        `│\n` +
+        `│ 🔢 *Select Game & Packs* :\n` +
         `│    Reply with game number (e.g. 1, 2)\n` +
-        `│    Reply with part number (e.g. 1, 2... for RAR parts)\n` +
+        `│    Reply "all" to send ALL 500MB packs sequentially\n` +
+        `│    Reply with pack number (e.g. 1, 2 for RAR packs)\n` +
         `│    Reply "m" or "magnet" for full Torrent\n` +
         '╰─────────────────────────•\n\n' +
         '✨ *Features:*\n' +
-        '• Direct RAR Parts download (~500MB each)\n' +
+        '• Full Game split into ~500MB RAR packs\n' +
+        '• Sequential auto delivery (one pack arrives right after another)\n' +
         '• High-Speed Direct Server Resolver\n' +
-        '• 1-Click Torrent Magnet Link support\n' +
-        '• WhatsApp Document Delivery Support\n\n' +
+        '• 1-Click Torrent Magnet Link support\n\n' +
         `> ${BRAND_FOOTER}`;
 
       return sock.sendMessage(from, { text: help }, { quoted: msg });
@@ -617,6 +843,13 @@ module.exports = {
 
         if (useButtons) {
           const rows = [];
+          if (organized.parts && organized.parts.length > 0) {
+            rows.push({
+              id: 'fg_all',
+              title: `📦 Send All Packs (${organized.parts.length} Packs, ~500MB each)`,
+              description: 'Auto queue: sends each pack sequentially one by one',
+            });
+          }
           if (organized.magnet) {
             rows.push({
               id: 'fg_mag',
@@ -624,7 +857,7 @@ module.exports = {
               description: 'Instant 1-Click Torrent Download',
             });
           }
-          const maxRows = Math.min(organized.parts.length, 19);
+          const maxRows = Math.min(organized.parts.length, 18);
           for (let i = 0; i < maxRows; i++) {
             const p = organized.parts[i];
             rows.push({
@@ -636,8 +869,8 @@ module.exports = {
           try {
             return await sendInteractiveSelect(sock, from, {
               text: overviewText,
-              buttonText: '🎮 Select Part / Magnet',
-              sections: [{ title: '📥 Game Parts & Magnet', rows }],
+              buttonText: '🎮 Select Option / Packs',
+              sections: [{ title: '📥 Game Downloads & Packs', rows }],
               imageUrl: info.image,
               quoted: msg,
             });

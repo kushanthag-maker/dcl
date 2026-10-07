@@ -409,11 +409,23 @@ async function handleMessage(sock, msg, sessionId) {
         commandName = 'settings';
         args = ['num', '7'];
       }
-    } else if (['m', 'mag', 'magnet'].includes(body.toLowerCase())) {
+    } else if (['m', 'mag', 'magnet'].includes(body.toLowerCase().trim())) {
       const fitgirl = getCommand('fitgirl') || require('../commands/download/fitgirl');
       if (fitgirl && fitgirl.hasPending && fitgirl.hasPending(from)) {
         commandName = 'fitgirl';
         args = ['magnet'];
+      }
+    } else if (['all', 'packs', 'parts', 'pack', 'all packs', 'send all', 'all parts', 'next'].includes(body.toLowerCase().trim())) {
+      const fitgirl = getCommand('fitgirl') || require('../commands/download/fitgirl');
+      if (fitgirl && fitgirl.hasPending && fitgirl.hasPending(from)) {
+        commandName = 'fitgirl';
+        args = ['all'];
+      }
+    } else if (['stop', 'cancel'].includes(body.toLowerCase().trim())) {
+      const fitgirl = getCommand('fitgirl') || require('../commands/download/fitgirl');
+      if (fitgirl && fitgirl.hasActiveQueue && fitgirl.hasActiveQueue(from)) {
+        commandName = 'fitgirl';
+        args = ['stop'];
       }
     } else if (body.startsWith(config.prefix || '.')) {
       // 2) Normal prefix commands
