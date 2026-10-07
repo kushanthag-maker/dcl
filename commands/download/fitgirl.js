@@ -3,15 +3,22 @@
  * Features:
  *   - Search FitGirl Repacks database (.fitgirl <game name>)
  *   - Dedicated All-Packs Auto Streaming command (.fgall <game name> / .fitgirlall / .fgpacks)
- *   - Sequential ~500MB Pack delivery: sends Part 1, Part 2, Part 3... one after another smoothly
- *   - Direct High-Speed Download link resolver with fast 8-second timeout & safe fallback
+ *   - Direct WhatsApp RAR Document delivery (.rar file sent right into chat)
+ *   - Real-time Progress Bar & Percentage edited in place on the same message
+ *   - Sequential ~500MB Pack delivery: sends Part 1, Part 2, Part 3... directly into WhatsApp
+ *   - High-Speed Direct Resolver with automatic CDN proxy and safe direct link fallback
  *   - Stop queue support: reply "stop" or "cancel" anytime to pause the stream
- *   - 100% crash-proof: no heavy memory buffering, graceful error handling for Baileys & WhatsApp
- *   - Single pack download: reply with part number (e.g. 1, 2) to get that specific ~500MB RAR pack
+ *   - 100% crash-proof: stream directly to disk, RAM-safe, handles connection drops gracefully
+ *   - Single pack document download: reply with part number (e.g. 1, 2) to get that RAR pack document
  *   - 1-Click Torrent Magnet Link support (reply "m" or "magnet")
  *   - Native Interactive Selection Buttons + automatic fallback for buttons:false
  */
 
+const https = require('https');
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 const axios = require('axios');
 const config = require('../../config');
 const { getSettings } = require('../../lib/botSettings');
@@ -29,7 +36,7 @@ const TTL = 5 * 60 * 1000;
 // Sessions: from (JID) -> { mode: 'search'|'overview', results, info, organized, timeout }
 const pending = new Map();
 
-// Active sequential streaming queues: from (JID) -> { stopped: boolean }
+// Active streaming queues: from (JID) -> { stopped: boolean }
 const activeQueues = new Map();
 
 function cleanTitle(str, max = 50) {
@@ -45,6 +52,19 @@ function safeFilename(str) {
     .replace(/[/\\?%*:|"<>]/g, '')
     .replace(/\s+/g, '_')
     .trim();
+}
+
+function formatBytes(bytes) {
+  if (!bytes || bytes <= 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function renderProgressBar(pct, length = 10) {
+  const filled = Math.min(length, Math.max(0, Math.round((pct / 100) * length)));
+  return '■'.repeat(filled) + '□'.repeat(length - filled);
 }
 
 function setSessionPending(from, data) {
@@ -132,6 +152,98 @@ async function resolveDownload(partUrl) {
     }
   } catch (_) {}
   return null;
+}
+
+/**
+ * Streams download to local file on disk (RAM safe, prevents OOM).
+ * Calls onProgress(received, total, pct) throttled.
+ */
+function downloadToFile(url, filePath, onProgress) {
+  return new Promise((resolve, reject) => {
+    let redirects = 0;
+    const maxRedirects = 8;
+
+    const executeGet = (currentUrl) => {
+      if (redirects > maxRedirects) {
+        return reject(new Error('Too many redirects'));
+      }
+      const client = currentUrl.startsWith('https') ? https : http;
+      const parsed = new URL(currentUrl);
+
+      const req = client.get(
+        currentUrl,
+        {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+            Accept: '*/*',
+            'Accept-Encoding': 'identity',
+            Referer: parsed.origin,
+          },
+          timeout: 600000,
+        },
+        (res) => {
+          if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+            res.resume();
+            redirects++;
+            const nextUrl = res.headers.location.startsWith('http')
+              ? res.headers.location
+              : new URL(res.headers.location, currentUrl).href;
+            return executeGet(nextUrl);
+          }
+
+          if (res.statusCode !== 200 && res.statusCode !== 206) {
+            res.resume();
+            return reject(new Error(`Server returned HTTP ${res.statusCode}`));
+          }
+
+          let total = parseInt(res.headers['content-length'] || '0', 10);
+          if (res.headers['content-range']) {
+            const match = res.headers['content-range'].match(/\/(\d+)$/);
+            if (match) total = parseInt(match[1], 10);
+          }
+
+          let received = 0;
+          let lastReport = Date.now();
+
+          const writeStream = fs.createWriteStream(filePath);
+
+          res.on('data', (chunk) => {
+            received += chunk.length;
+            const now = Date.now();
+            if (onProgress && (now - lastReport >= 2500 || (total > 0 && received >= total))) {
+              lastReport = now;
+              const pct = total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0;
+              onProgress(received, total, pct);
+            }
+          });
+
+          res.pipe(writeStream);
+
+          writeStream.on('finish', () => {
+            writeStream.close(() => resolve({ bytes: received, total }));
+          });
+
+          writeStream.on('error', (err) => {
+            try { fs.unlinkSync(filePath); } catch (_) {}
+            reject(err);
+          });
+        }
+      );
+
+      req.on('timeout', () => {
+        req.destroy();
+        try { fs.unlinkSync(filePath); } catch (_) {}
+        reject(new Error('Download timeout'));
+      });
+
+      req.on('error', (err) => {
+        try { fs.unlinkSync(filePath); } catch (_) {}
+        reject(err);
+      });
+    };
+
+    executeGet(url);
+  });
 }
 
 /* ---------------- Interactive Message Helper ---------------- */
@@ -280,7 +392,7 @@ function buildGameOverviewCard(info, organized, useButtons) {
     '╭─〔 📥 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃 𝐎𝐏𝐓𝐈𝐎𝐍𝐒 〕─•\n';
 
   if (parts.length > 0) {
-    text += `│ 📦 *Option ALL* : Send All Packs (${parts.length} Packs, ~500MB each sequentially)\n`;
+    text += `│ 📦 *Option ALL* : Send All Packs (${parts.length} Packs as WhatsApp Documents)\n`;
   }
   if (magnet) {
     text += '│ 🧲 *Option M*   : Direct 1-Click Torrent Magnet\n';
@@ -301,12 +413,12 @@ function buildGameOverviewCard(info, organized, useButtons) {
   if (useButtons) {
     text +=
       '💡 *Tap "Select Option" button below to start download*\n' +
-      '📦 *Or reply "all" to send ALL 500MB packs sequentially (auto queue)*\n' +
+      '📦 *Or reply "all" to send ALL 500MB packs as WhatsApp Documents*\n' +
       '🔢 *Or reply with Pack number (e.g. 1 for Part 1, 2 for Part 2)*\n' +
       '🧲 *Or reply "m" or "magnet" for full Torrent Magnet Link*\n\n';
   } else {
     text +=
-      '💡 *Reply "all" to send ALL 500MB packs sequentially (auto queue)*\n' +
+      '💡 *Reply "all" to send ALL 500MB packs as WhatsApp Documents (auto queue)*\n' +
       '🔢 *Or reply with Pack number (e.g. 1 for Part 1, 2 for Part 2)*\n' +
       '🧲 *Or reply "m" or "magnet" to get the full Torrent Magnet Link.*\n\n';
   }
@@ -315,7 +427,153 @@ function buildGameOverviewCard(info, organized, useButtons) {
   return text;
 }
 
-/* ---------------- Sequential All-Packs Streaming Runner ---------------- */
+/* ---------------- WhatsApp Document Delivery & Progress Editor ---------------- */
+
+/**
+ * Downloads a ~500MB Pack to disk while editing the SAME progress message dynamically,
+ * then delivers the RAR file directly into WhatsApp as a Document!
+ */
+async function sendPackAsDocument(sock, from, msg, partItem, gameTitle, totalParts) {
+  const fileName = `${safeFilename(gameTitle)}_Part${String(partItem.partNum).padStart(3, '0')}.rar`;
+  let directDownloadUrl = partItem.url;
+  let resolvedSize = '500.0 MB';
+  let resolvedFileName = fileName;
+
+  // 1. Resolve High-Speed Link
+  if (partItem.isResolvable) {
+    const dlData = await resolveDownload(partItem.url);
+    if (dlData) {
+      if (dlData.direct_link || dlData.download_link) {
+        directDownloadUrl = dlData.direct_link || dlData.download_link;
+      }
+      if (dlData.size) resolvedSize = dlData.size;
+      if (dlData.filename) resolvedFileName = dlData.filename;
+    }
+  }
+
+  // 2. Initial Progress Message
+  const progressMsg = await sock.sendMessage(
+    from,
+    {
+      text:
+        '╔════════════════════════════╗\n' +
+        '  📦 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓟𝓐𝓒𝓚 𝓓𝓞𝓦𝓝𝓛𝓞𝓐𝓓 📦\n' +
+        '╚════════════════════════════╝\n\n' +
+        `🎮 *Game* : *${gameTitle}*\n` +
+        `🧩 *Pack* : *Part ${partItem.partNum}* of *${totalParts}*\n` +
+        `📁 *File* : \`${resolvedFileName}\`\n` +
+        `📊 *Size* : *${resolvedSize}*\n\n` +
+        '⏳ *Server එකෙන් Pack එක බාගත වෙමින් පවතී...*\n' +
+        '□□□□□□□□□□ 0%\n\n' +
+        `> ${BRAND_FOOTER}`,
+    },
+    { quoted: msg }
+  ).catch(() => null);
+
+  const tmpPath = path.join(os.tmpdir(), `fg_${Date.now()}_${safeFilename(resolvedFileName)}`);
+
+  try {
+    // 3. Dynamic Progress Callback editing the same message
+    const onProgress = async (received, total, pct) => {
+      if (!progressMsg?.key) return;
+      const bar = renderProgressBar(pct, 10);
+      const progressText =
+        '╔════════════════════════════╗\n' +
+        '  📦 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓟𝓐𝓒𝓚 𝓓𝓞𝓦𝓝𝓛𝓞𝓐𝓓 📦\n' +
+        '╚════════════════════════════╝\n\n' +
+        `🎮 *Game* : *${gameTitle}*\n` +
+        `🧩 *Pack* : *Part ${partItem.partNum}* of *${totalParts}*\n` +
+        `📁 *File* : \`${resolvedFileName}\`\n` +
+        `📊 *Size* : *${formatBytes(received)}* / *${total > 0 ? formatBytes(total) : resolvedSize}*\n\n` +
+        `⬇️ *Server එකෙන් බාගත වෙමින්... [ ${pct}% ]*\n` +
+        `${bar} ${pct}%\n\n` +
+        `> ${BRAND_FOOTER}`;
+
+      await sock.sendMessage(from, { text: progressText, edit: progressMsg.key }).catch(() => {});
+    };
+
+    // 4. Stream to disk
+    const dlRes = await downloadToFile(directDownloadUrl, tmpPath, onProgress);
+
+    // 5. Update progress message to "Uploading to WhatsApp"
+    if (progressMsg?.key) {
+      const uploadText =
+        '╔════════════════════════════╗\n' +
+        '  📦 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓟𝓐𝓒𝓚 𝓓𝓞𝓦𝓝𝓛𝓞𝓐𝓓 📦\n' +
+        '╚════════════════════════════╝\n\n' +
+        `🎮 *Game* : *${gameTitle}*\n` +
+        `🧩 *Pack* : *Part ${partItem.partNum}* of *${totalParts}*\n` +
+        `📁 *File* : \`${resolvedFileName}\`\n` +
+        `📊 *Size* : *${formatBytes(dlRes.bytes)}*\n\n` +
+        '📤 *WhatsApp එකට Document එකක් ලෙස Upload වෙමින් පවතී...*\n' +
+        '■■■■■■■■■■ 100%\n' +
+        '⏳ කරුණාකර රැඳී සිටින්න...\n\n' +
+        `> ${BRAND_FOOTER}`;
+
+      await sock.sendMessage(from, { text: uploadText, edit: progressMsg.key }).catch(() => {});
+    }
+
+    // 6. Deliver Document directly into WhatsApp!
+    await sock.sendMessage(
+      from,
+      {
+        document: { url: tmpPath },
+        mimetype: 'application/x-rar-compressed',
+        fileName: resolvedFileName,
+        caption:
+          '╔════════════════════════════╗\n' +
+          `  🚀 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓟𝓐𝓒𝓚 [${partItem.partNum} / ${totalParts}] 🚀\n` +
+          '╚════════════════════════════╝\n\n' +
+          `🎮 *Game* : *${gameTitle}*\n` +
+          `🧩 *Pack* : *Part ${partItem.partNum}* of *${totalParts}*\n` +
+          `📁 *File* : \`${resolvedFileName}\`\n` +
+          `📊 *Size* : *${formatBytes(dlRes.bytes)}*\n` +
+          `🌐 *Host* : *${partItem.hoster}*\n\n` +
+          '💡 *සියලුම Parts Download කර Part 1 Extract කර Install කරන්න.*\n\n' +
+          `> ${BRAND_FOOTER}`,
+      },
+      { quoted: msg }
+    );
+
+    // 7. Delete progress message once delivered
+    if (progressMsg?.key) {
+      await sock.sendMessage(from, { delete: progressMsg.key }).catch(() => {});
+    }
+  } catch (err) {
+    logger.warn('[FitGirl] Document stream/upload fallback: ' + err.message);
+
+    // Fallback card with direct high-speed link in case source host restricts direct streaming
+    const fallbackText =
+      '╔════════════════════════════╗\n' +
+      '  🚀 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓓𝓘𝓡𝓔𝓒𝓣 𝓛𝓘𝓝𝓚 🚀\n' +
+      '╚════════════════════════════╝\n\n' +
+      `🎮 *Game* : *${gameTitle}*\n` +
+      `🧩 *Pack* : *Part ${partItem.partNum}* of *${totalParts}*\n` +
+      `📁 *File* : \`${resolvedFileName}\`\n` +
+      `📊 *Size* : *${resolvedSize}*\n` +
+      `🌐 *Host* : *${partItem.hoster}*\n\n` +
+      '⚠️ _Host එක හෝ WhatsApp Document සීමාව නිසා සෘජු Direct High-Speed Download Link එක පහත දක්වා ඇත:_\n\n' +
+      '╭─〔 🔗 𝐃𝐈𝐑𝐄𝐂𝐓 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃 𝐔𝐑𝐋 〕─•\n' +
+      `│ 👉 ${directDownloadUrl}\n` +
+      '╰─────────────────────────•\n\n' +
+      '💡 *Chrome / ADM / IDM මඟින් Maximum Speed එකෙන් Download කරගත හැක.*\n\n' +
+      `> ${BRAND_FOOTER}`;
+
+    if (progressMsg?.key) {
+      await sock.sendMessage(from, { text: fallbackText, edit: progressMsg.key }).catch(async () => {
+        await sock.sendMessage(from, { text: fallbackText }, { quoted: msg });
+      });
+    } else {
+      await sock.sendMessage(from, { text: fallbackText }, { quoted: msg });
+    }
+  } finally {
+    try {
+      if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+    } catch (_) {}
+  }
+}
+
+/* ---------------- Sequential All-Packs Document Streaming Runner ---------------- */
 
 async function streamAllPacks(sock, from, msg, info, organized) {
   const parts = organized.parts;
@@ -356,7 +614,8 @@ async function streamAllPacks(sock, from, msg, info, organized) {
     `🎮 *Game*        : *${gameTitle}*\n` +
     `🧩 *Total Packs* : *${parts.length} RAR Packs (~500MB each)*\n` +
     `📦 *Repack Size* : *${info?.repack_size || 'N/A'}*\n\n` +
-    '⏳ *සියලුම Packs (~500MB) එකින් එක පිළිවෙලින් එවනු ලැබේ. එකක් එවූ සැණින් ඊළඟ කොටස එවනු ලැබේ...*\n' +
+    '⏳ *සියලුම Packs (~500MB) WhatsApp Documents ලෙස එකින් එක එවනු ලැබේ...*\n' +
+    '📊 *එක් එක් Pack එකේ Progress එක Live Update වනු ඇත.*\n' +
     '🛑 *නැවැත්වීමට අවශ්‍ය නම් "stop" ලෙස reply කරන්න.*\n\n' +
     `> ${BRAND_FOOTER}`;
 
@@ -371,53 +630,12 @@ async function streamAllPacks(sock, from, msg, info, organized) {
     }
 
     const partItem = parts[i];
-    const fileName = `${safeFilename(gameTitle)}_Part${String(partItem.partNum).padStart(3, '0')}.rar`;
-    let directDownloadUrl = partItem.url;
-    let resolvedSize = '500.0 MB';
-    let resolvedFileName = fileName;
-
-    // Fast 8-second direct link resolution
-    if (partItem.isResolvable) {
-      const dlData = await resolveDownload(partItem.url);
-      if (dlData) {
-        if (dlData.direct_link || dlData.download_link) {
-          directDownloadUrl = dlData.direct_link || dlData.download_link;
-        }
-        if (dlData.size) resolvedSize = dlData.size;
-        if (dlData.filename) resolvedFileName = dlData.filename;
-      }
-    }
+    await sendPackAsDocument(sock, from, msg, partItem, gameTitle, parts.length);
+    sentCount++;
 
     const isLast = (i === parts.length - 1);
-    const card =
-      '╔════════════════════════════╗\n' +
-      `  🚀 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓟𝓐𝓒𝓚 [${partItem.partNum} / ${parts.length}] 🚀\n` +
-      '╚════════════════════════════╝\n\n' +
-      `🎮 *Game* : *${gameTitle}*\n` +
-      `🧩 *Pack* : *Part ${partItem.partNum}* of *${parts.length}* (~500MB)\n` +
-      `📁 *File* : \`${resolvedFileName}\`\n` +
-      `📊 *Size* : *${resolvedSize}*\n` +
-      `🌐 *Host* : *${partItem.hoster} (High Speed)*\n\n` +
-      '╭─〔 🔗 𝐃𝐈𝐑𝐄𝐂𝐓 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃 〕─•\n' +
-      `│ 👉 ${directDownloadUrl}\n` +
-      '╰─────────────────────────•\n\n' +
-      (isLast
-        ? '🏁 _අවසාන Pack එක එවනු ලැබීය!_\n\n'
-        : `_Part ${partItem.partNum} / ${parts.length} එවනු ලැබීය. ඊළඟ Pack එක එවමින් පවතී... ⏳_\n\n`) +
-      `> ${BRAND_FOOTER}`;
-
-    try {
-      await sock.sendMessage(from, { text: card });
-      sentCount++;
-    } catch (sendErr) {
-      if (sendErr && (sendErr.message?.includes('closed') || sendErr.message?.includes('rate-overlimit'))) {
-        logger.warn('[FitGirl] Socket issue during stream: ' + sendErr.message);
-        break;
-      }
-    }
-
-    // 1.5s delay between packs: smooth sequential delivery, no rate-overlimit throttles
     if (!isLast && !queueCtrl.stopped) {
+      // 1.5s delay between packs
       await new Promise((r) => setTimeout(r, 1500));
     }
   }
@@ -427,7 +645,7 @@ async function streamAllPacks(sock, from, msg, info, organized) {
   if (queueCtrl.stopped) {
     try {
       await sock.sendMessage(from, {
-        text: `🛑 *Game packs queue එක නතර කරන ලදී.* (කොටස් ${sentCount} ක් එවන ලදී).`,
+        text: `🛑 *Game packs queue එක නතර කරන ලදී.* (Packs ${sentCount} ක් එවන ලදී).`,
       });
     } catch (_) {}
     return;
@@ -439,7 +657,7 @@ async function streamAllPacks(sock, from, msg, info, organized) {
     '  🎉 𝐀𝐋𝐋 𝐏𝐀𝐂𝐊𝐒 𝐒𝐄𝐍𝐓 𝐒𝐔𝐂𝐂𝐄𝐒𝐒𝐅𝐔𝐋𝐋𝐘 🎉\n' +
     '╚════════════════════════════╝\n\n' +
     `🎮 *Game*   : *${gameTitle}*\n` +
-    `📦 *Status* : *සියලුම ${parts.length} RAR Packs (~500MB each) සාර්ථකව එවා අවසන්!*\n\n` +
+    `📦 *Status* : *සියලුම ${parts.length} RAR Packs (~500MB each) WhatsApp Document ලෙස සාර්ථකව එවා අවසන්!*\n\n` +
     '╭─〔 💡 𝐇𝐎𝐖 𝐓𝐎 𝐈𝐍𝐒𝐓𝐀𝐋𝐋 〕─•\n' +
     '│ 1️⃣ සියලුම Parts (.rar files) එකම Folder එකකට Download කරගන්න.\n' +
     '│ 2️⃣ *Part 1 (.part001.rar / .part01.rar)* මත Right Click කර *Extract Here* (WinRAR / 7-Zip) කරන්න.\n' +
@@ -458,7 +676,7 @@ async function streamAllPacks(sock, from, msg, info, organized) {
 module.exports = {
   name: 'fitgirl',
   aliases: ['fit', 'repack', 'pcgame', 'pcgames', 'fitgirlrepack', 'fgall', 'fitgirlall', 'fgpacks', 'gamepacks'],
-  description: 'Search & download FitGirl PC game repacks & ~500MB RAR packs in WhatsApp',
+  description: 'Search & download FitGirl PC game repacks & ~500MB RAR pack documents in WhatsApp',
   category: 'download',
 
   hasPending(from) {
@@ -478,6 +696,11 @@ module.exports = {
     }
     return false;
   },
+
+  // Exported for testing
+  downloadToFile,
+  renderProgressBar,
+  formatBytes,
 
   async execute({ sock, msg, from, args, sessionId, commandName }) {
     const prefix = config.prefix || '.';
@@ -641,8 +864,8 @@ module.exports = {
             if (organized.parts && organized.parts.length > 0) {
               rows.push({
                 id: 'fg_all',
-                title: `📦 Send All Packs (${organized.parts.length} Packs, ~500MB each)`,
-                description: 'Auto queue: sends each pack sequentially one by one',
+                title: `📦 Send All Packs (${organized.parts.length} Documents)`,
+                description: 'Auto queue: sends each pack as WhatsApp document with live progress',
               });
             }
             if (organized.magnet) {
@@ -659,7 +882,7 @@ module.exports = {
               rows.push({
                 id: `fg_part_${p.partNum}`,
                 title: `🧩 Part ${p.partNum} (${p.hoster})`,
-                description: `Download Part ${p.partNum} (~500MB RAR)`,
+                description: `Download Part ${p.partNum} (~500MB RAR Document)`,
               });
             }
 
@@ -723,7 +946,7 @@ module.exports = {
         return await sock.sendMessage(from, { text: magnetText }, { quoted: msg });
       }
 
-      // 4. Single Pack Selection (e.g. reply 1 for Part 1)
+      // 4. Single Pack Selection as Document with Live Progress!
       if (state?.mode === 'overview' || selectionType === 'part') {
         const partNum = selectedIdx;
         if (!state || !state.organized || !state.organized.parts || !state.organized.parts.length) {
@@ -744,43 +967,7 @@ module.exports = {
         }
 
         const gameTitle = cleanTitle(state.info?.title || 'PC Game', 36);
-        const fileName = `${safeFilename(gameTitle)}_Part${String(partItem.partNum).padStart(3, '0')}.rar`;
-
-        let directDownloadUrl = partItem.url;
-        let resolvedSize = '500.0 MB';
-        let resolvedFileName = fileName;
-
-        if (partItem.isResolvable) {
-          const dlData = await resolveDownload(partItem.url);
-          if (dlData) {
-            if (dlData.direct_link || dlData.download_link) {
-              directDownloadUrl = dlData.direct_link || dlData.download_link;
-            }
-            if (dlData.size) resolvedSize = dlData.size;
-            if (dlData.filename) resolvedFileName = dlData.filename;
-          }
-        }
-
-        const dlCard =
-          '╔════════════════════════════╗\n' +
-          '  🚀 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓟𝓐𝓒𝓚 𝓓𝓞𝓦𝓝𝓛𝓞𝓐𝓓 🚀\n' +
-          '╚════════════════════════════╝\n\n' +
-          `🎮 *Game* : *${gameTitle}*\n` +
-          `🧩 *Pack* : *Part ${partItem.partNum}* of *${state.organized.parts.length}* (~500MB)\n` +
-          `📁 *File* : \`${resolvedFileName}\`\n` +
-          `📊 *Size* : *${resolvedSize}*\n` +
-          `🌐 *Host* : *${partItem.hoster} (High Speed)*\n\n` +
-          '╭─〔 🔗 𝐃𝐈𝐑𝐄𝐂𝐓 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃 𝐔𝐑𝐋 〕─•\n' +
-          `│ 👉 ${directDownloadUrl}\n` +
-          '╰─────────────────────────•\n\n' +
-          '💡 *Chrome / ADM / IDM මඟින් Maximum Speed එකෙන් Download කරගත හැක.*\n' +
-          '📦 *සියලුම Packs එකවර ලබාගැනීමට "all" හෝ ".fgall" ලෙස reply කරන්න.*\n\n' +
-          `> ${BRAND_FOOTER}`;
-
-        try {
-          await sock.sendMessage(from, { text: dlCard }, { quoted: msg });
-        } catch (_) {}
-        return;
+        return await sendPackAsDocument(sock, from, msg, partItem, gameTitle, state.organized.parts.length);
       }
 
       return sock.sendMessage(
@@ -802,20 +989,21 @@ module.exports = {
         `│    ${prefix}fitgirl <game name>\n` +
         `│    _Example:_ ${prefix}fitgirl GTA\n` +
         `│\n` +
-        `│ 📦 *Send All ~500MB Packs Directly* :\n` +
+        `│ 📦 *Send All ~500MB Pack Documents* :\n` +
         `│    ${prefix}fgall <game name>\n` +
         `│    _Example:_ ${prefix}fgall GTA\n` +
         `│\n` +
         `│ 🔢 *Select Game & Packs* :\n` +
         `│    Reply with game number (e.g. 1, 2)\n` +
-        `│    Reply "all" to send ALL 500MB packs sequentially\n` +
-        `│    Reply with pack number (e.g. 1, 2 for RAR packs)\n` +
+        `│    Reply "all" to send ALL packs as WhatsApp Documents\n` +
+        `│    Reply with pack number (e.g. 1, 2 for RAR pack document)\n` +
         `│    Reply "m" or "magnet" for full Torrent\n` +
         '╰─────────────────────────•\n\n' +
         '✨ *Features:*\n' +
         '• Full Game split into ~500MB RAR packs\n' +
-        '• Sequential auto delivery (one pack arrives right after another)\n' +
-        '• High-Speed Direct Server Resolver\n' +
+        '• Direct WhatsApp RAR Document delivery\n' +
+        '• Live In-Place Progress Bar Editing\n' +
+        '• Sequential auto delivery (Pack 1 -> Pack 2 -> Pack 3...)\n' +
         '• 1-Click Torrent Magnet Link support\n\n' +
         `> ${BRAND_FOOTER}`;
 
@@ -846,8 +1034,8 @@ module.exports = {
           if (organized.parts && organized.parts.length > 0) {
             rows.push({
               id: 'fg_all',
-              title: `📦 Send All Packs (${organized.parts.length} Packs, ~500MB each)`,
-              description: 'Auto queue: sends each pack sequentially one by one',
+              title: `📦 Send All Packs (${organized.parts.length} Documents)`,
+              description: 'Auto queue: sends each pack as WhatsApp document with live progress',
             });
           }
           if (organized.magnet) {
@@ -863,7 +1051,7 @@ module.exports = {
             rows.push({
               id: `fg_part_${p.partNum}`,
               title: `🧩 Part ${p.partNum} (${p.hoster})`,
-              description: `Download Part ${p.partNum} (~500MB RAR)`,
+              description: `Download Part ${p.partNum} (~500MB RAR Document)`,
             });
           }
           try {
