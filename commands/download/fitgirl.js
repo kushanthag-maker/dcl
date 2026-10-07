@@ -14,6 +14,7 @@
  */
 
 const axios = require('axios');
+const { TobiStreamEngine } = require('../../tobi');
 const config = require('../../config');
 const { getSettings } = require('../../lib/botSettings');
 const logger = require('../../lib/logger');
@@ -319,8 +320,8 @@ function buildGameOverviewCard(info, organized, useButtons) {
 /* ---------------- Fast Pack Delivery & Streaming Runner ---------------- */
 
 /**
- * Delivers a ~500MB Pack with high-speed direct CDN link, full metadata,
- * and 1-click download button. Guaranteed 0% freeze and 100% completion.
+ * Delivers a ~500MB Pack with TobiStreamEngine live streaming to WhatsApp document,
+ * live edited progress, and high-speed direct CDN fallback. Guaranteed 0% freeze and 100% completion.
  */
 async function deliverPackCard(sock, from, msg, partItem, gameTitle, totalParts) {
   const fileName = `${safeFilename(gameTitle)}_Part${String(partItem.partNum).padStart(3, '0')}.rar`;
@@ -339,30 +340,98 @@ async function deliverPackCard(sock, from, msg, partItem, gameTitle, totalParts)
     }
   }
 
-  const isLast = (partItem.partNum === totalParts);
-  const card =
-    '╔════════════════════════════╗\n' +
-    `  🚀 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓟𝓐𝓒𝓚 [${partItem.partNum} / ${totalParts}] 🚀\n` +
-    '╚════════════════════════════╝\n\n' +
-    `🎮 *Game* : *${gameTitle}*\n` +
-    `🧩 *Pack* : *Part ${partItem.partNum}* of *${totalParts}* (~500MB)\n` +
-    `📁 *File* : \`${resolvedFileName}\`\n` +
-    `📊 *Size* : *${resolvedSize}*\n` +
-    `🌐 *Host* : *${partItem.hoster} (High Speed Direct)*\n\n` +
-    '╭─〔 🔗 𝐃𝐈𝐑𝐄𝐂𝐓 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃 〕─•\n' +
-    `│ 👉 ${directDownloadUrl}\n` +
-    '╰─────────────────────────•\n\n' +
-    '⚡ *Chrome / ADM / 1DM / IDM මඟින් එක Click එකෙන් Full Speed එකෙන් Download වේ!*\n' +
-    '💡 *WhatsApp Document සීමාව 100MB වන බැවින්, මෙම 500MB Pack එක සෘජුවම බාගත කරගැනීමට ඉහත Link එක භාවිතා කරන්න.*\n\n' +
-    (isLast
-      ? '🏁 _අවසාන Pack එක එවනු ලැබීය!_\n\n'
-      : `_Part ${partItem.partNum} / ${totalParts} සාර්ථකව ලැබුණි. ඊළඟ Pack එක එවමින් පවතී... ⏳_\n\n`) +
-    `> ${BRAND_FOOTER}`;
-
+  // 1. Send live status message that gets edited in-place with progress
+  let statusMsg = null;
   try {
-    await sock.sendMessage(from, { text: card }, { quoted: msg });
+    statusMsg = await sock.sendMessage(
+      from,
+      {
+        text:
+          `⏳ *[${partItem.partNum} / ${totalParts}] Game Pack Stream ආරම්භ කරමින්...*\n` +
+          `🎮 *Game* : *${gameTitle}*\n` +
+          `📁 *File* : \`${resolvedFileName}\`\n` +
+          `📊 *Size* : *${resolvedSize}*\n` +
+          `⚡ *Tobi Stream Engine මඟින් RAM Bloat රහිතව Stream වෙමින් පවතී...*`,
+      },
+      { quoted: msg }
+    );
+  } catch (_) {}
+
+  let documentSent = false;
+  let lastEditTime = Date.now();
+
+  // 2. Stream directly to WhatsApp as a document via TobiStreamEngine (<30MB RAM)
+  try {
+    await TobiStreamEngine.sendLargeFile(sock, from, directDownloadUrl, {
+      fileName: resolvedFileName,
+      mimetype: 'application/x-rar-compressed',
+      asDocument: true,
+      caption: `🎮 *${gameTitle}* — Part ${partItem.partNum}/${totalParts}\n📁 \`${resolvedFileName}\`\n⚡ Powered by Tobi Engine`,
+      quoted: msg,
+      onProgress: async (p) => {
+        const now = Date.now();
+        // Throttle edit updates to every 3.5s to prevent WhatsApp rate limiting
+        if (statusMsg && (now - lastEditTime >= 3500 || p.percent >= 99)) {
+          lastEditTime = now;
+          const bar = '█'.repeat(Math.floor(p.percent / 10)) + '░'.repeat(10 - Math.floor(p.percent / 10));
+          const progressText =
+            `⏳ *[${partItem.partNum} / ${totalParts}] WhatsApp වෙත Document Stream වෙමින් පවතී...*\n` +
+            `🎮 *Game* : *${gameTitle}*\n` +
+            `📁 *File* : \`${resolvedFileName}\`\n` +
+            `📊 *Progress* : [${bar}] *${p.percent}%*\n` +
+            `📦 *Uploaded* : ${p.uploadedFormatted} / ${p.totalFormatted || resolvedSize}\n` +
+            `⚡ *Speed* : *${p.speedMBs} MB/s* | ⏱️ *ETA* : *${p.etaFormatted}*\n` +
+            `🛑 *නැවැත්වීමට "stop" ලෙස reply කරන්න.*`;
+
+          await sock.sendMessage(from, { text: progressText, edit: statusMsg.key }).catch(() => {});
+        }
+      },
+    });
+
+    documentSent = true;
+    if (statusMsg) {
+      await sock.sendMessage(from, {
+        text: `✅ *[${partItem.partNum} / ${totalParts}] Document සාර්ථකව ලැබුණි!*\n📁 \`${resolvedFileName}\``,
+        edit: statusMsg.key,
+      }).catch(() => {});
+    }
   } catch (err) {
-    logger.warn('[FitGirl] Error sending pack card: ' + err.message);
+    logger.warn(`[FitGirl] Document direct stream fallback for part ${partItem.partNum}: ${err.message}`);
+  }
+
+  // 3. Guaranteed Delivery Card if document could not be delivered directly
+  if (!documentSent) {
+    const isLast = (partItem.partNum === totalParts);
+    const card =
+      '╔════════════════════════════╗\n' +
+      `  🚀 𝓕𝓘𝓣𝓖𝓘𝓡𝓛 · 𝓟𝓐𝓒𝓚 [${partItem.partNum} / ${totalParts}] 🚀\n` +
+      '╚════════════════════════════╝\n\n' +
+      `🎮 *Game* : *${gameTitle}*\n` +
+      `🧩 *Pack* : *Part ${partItem.partNum}* of *${totalParts}* (~500MB)\n` +
+      `📁 *File* : \`${resolvedFileName}\`\n` +
+      `📊 *Size* : *${resolvedSize}*\n` +
+      `🌐 *Host* : *${partItem.hoster} (High Speed Direct)*\n\n` +
+      '╭─〔 🔗 𝐃𝐈𝐑𝐄𝐂𝐓 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃 〕─•\n' +
+      `│ 👉 ${directDownloadUrl}\n` +
+      '╰─────────────────────────•\n\n' +
+      '⚡ *Chrome / ADM / 1DM / IDM මඟින් එක Click එකෙන් Full Speed එකෙන් Download වේ!*\n' +
+      '💡 *WhatsApp සීමාවන් නිසා Document නොපැමිණියේ නම් ඉහත Direct Link එක ක්ලික් කර ගන්න.*\n\n' +
+      (isLast
+        ? '🏁 _අවසාන Pack එක එවනු ලැබීය!_\n\n'
+        : `_Part ${partItem.partNum} / ${totalParts} සාර්ථකයි. ඊළඟ Pack එක එවමින් පවතී... ⏳_\n\n`) +
+      `> ${BRAND_FOOTER}`;
+
+    try {
+      if (statusMsg) {
+        await sock.sendMessage(from, { text: card, edit: statusMsg.key }).catch(async () => {
+          await sock.sendMessage(from, { text: card }, { quoted: msg });
+        });
+      } else {
+        await sock.sendMessage(from, { text: card }, { quoted: msg });
+      }
+    } catch (err) {
+      logger.warn('[FitGirl] Error sending pack card: ' + err.message);
+    }
   }
 }
 
