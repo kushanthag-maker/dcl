@@ -135,6 +135,16 @@
       "buttons": true,
       "menuStyle": "royal",
       "workMode": "public"
+    },
+    "test-full-flow": {
+      "botName": "Dark Queen",
+      "logo": "https://files.catbox.moe/yjyx4x.webp",
+      "statusSeen": false,
+      "antiDelete": false,
+      "antiLink": false,
+      "buttons": true,
+      "menuStyle": "royal",
+      "workMode": "public"
     }
   },
   "phoneMap": {

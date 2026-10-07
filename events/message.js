@@ -109,7 +109,8 @@ function extractInteractiveId(msg) {
               v.startsWith('dqtheme_') ||
               v.startsWith('csub_') ||
               v.startsWith('mbox_') ||
-              v.startsWith('ssub_')
+              v.startsWith('ssub_') ||
+              v.startsWith('fg_')
             ) {
               return v.trim();
             }

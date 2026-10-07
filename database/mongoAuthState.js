@@ -147,6 +147,17 @@ function createMockCollection(name) {
       saveMockData();
       return { deletedCount: before - data[name].length };
     },
+    bulkWrite: async (ops) => {
+      const col = createMockCollection(name);
+      for (const op of ops) {
+        if (op.updateOne) {
+          await col.updateOne(op.updateOne.filter, op.updateOne.update, { upsert: op.updateOne.upsert });
+        } else if (op.deleteOne) {
+          await col.deleteOne(op.deleteOne.filter);
+        }
+      }
+      return { ok: 1 };
+    },
   };
 }
 
@@ -337,7 +348,7 @@ async function useMongoAuthState(mongoUri, sessionId) {
           return data;
         },
         set: async function (newData) {
-          var tasks = [];
+          var operations = [];
           var categories = Object.keys(newData);
           for (var i = 0; i < categories.length; i++) {
             var category = categories[i];
@@ -348,14 +359,37 @@ async function useMongoAuthState(mongoUri, sessionId) {
               var key = category + '-' + id;
               if (value) {
                 keyCache.set(key, value);
-                tasks.push(writeData(key, value));
+                operations.push({
+                  updateOne: {
+                    filter: { sessionId: sessionId, key: key },
+                    update: {
+                      $set: {
+                        sessionId: sessionId,
+                        key: key,
+                        data: JSON.stringify(value, BufferJSON.replacer),
+                        updatedAt: new Date(),
+                      },
+                    },
+                    upsert: true,
+                  },
+                });
               } else {
                 keyCache.delete(key);
-                tasks.push(removeData(key));
+                operations.push({
+                  deleteOne: {
+                    filter: { sessionId: sessionId, key: key },
+                  },
+                });
               }
             }
           }
-          await Promise.all(tasks);
+          if (operations.length > 0) {
+            try {
+              await collection.bulkWrite(operations, { ordered: false });
+            } catch (e) {
+              console.error('[MongoDB] bulkWrite keys.set error:', e.message);
+            }
+          }
         },
       },
     },

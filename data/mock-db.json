@@ -1,0 +1,17 @@
+{
+  "sessions": [
+    {
+      "sessionId": "test-sid",
+      "key": "pre-key-1",
+      "data": "{\"public\":{\"type\":\"Buffer\",\"data\":\"dGVzdA==\"},\"private\":{\"type\":\"Buffer\",\"data\":\"cHJpdg==\"}}",
+      "updatedAt": "2026-10-07T08:51:53.695Z"
+    },
+    {
+      "sessionId": "test-sid",
+      "key": "pre-key-2",
+      "data": "{\"public\":{\"type\":\"Buffer\",\"data\":\"dGVzdDI=\"},\"private\":{\"type\":\"Buffer\",\"data\":\"cHJpdjI=\"}}",
+      "updatedAt": "2026-10-07T08:51:53.696Z"
+    }
+  ],
+  "ai_coins": []
+}
