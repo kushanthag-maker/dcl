@@ -15,7 +15,7 @@ const DEFAULT_LOGO = 'https://files.catbox.moe/yjyx4x.webp';
 const DISPLAY_BOT_NAME = '𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐';
 
 const CATEGORY_META = [
-  { key: 'download', title: '𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃', emoji: '💎', order: 1, desc: 'CineSubz, Song, Video, FB, TT, APK' },
+  { key: 'download', title: '𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃', emoji: '💎', order: 1, desc: 'CineSubz, FitGirl Games, Song, Video, FB, TT, APK' },
   { key: 'ai', title: '𝐀𝐈 & 𝐒𝐌𝐀𝐑𝐓', emoji: '🤖', order: 2, desc: 'GPT, Claude, Llama & Chat AI' },
   { key: 'group', title: '𝐆𝐑𝐎𝐔𝐏 𝐓𝐎𝐎𝐋𝐒', emoji: '👥', order: 3, desc: 'Promote, Demote, Kick, Tag' },
   { key: 'utility', title: '𝐔𝐓𝐈𝐋𝐈𝐓𝐈𝐄𝐒', emoji: '🌸', order: 4, desc: 'Alive, Ping, QR, News & Tools' },

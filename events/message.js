@@ -216,6 +216,9 @@ function routeInteractive(body) {
   if (id.startsWith('ssub_')) {
     return { commandName: 'ssub', args: [id] };
   }
+  if (id.startsWith('fg_')) {
+    return { commandName: 'fitgirl', args: [id] };
+  }
   if (id.startsWith('dqset_')) {
     return { commandName: 'settings', args: [id] };
   }
@@ -376,10 +379,11 @@ async function handleMessage(sock, msg, sessionId) {
       commandName = routed.commandName;
       args = routed.args;
     } else if (/^\d+$/.test(body)) {
-      // 1b) Active movie selection / direct quality pick for all movie commands
+      // 1b) Active movie & game selection / direct quality pick
       const cinesubz = getCommand('cinesubz') || require('../commands/download/cinesubz');
       const moviebox = getCommand('moviebox') || require('../commands/download/moviebox');
       const ssub = getCommand('ssub') || require('../commands/download/ssub');
+      const fitgirl = getCommand('fitgirl') || require('../commands/download/fitgirl');
 
       if (cinesubz && cinesubz.hasPending && cinesubz.hasPending(from)) {
         commandName = 'cinesubz';
@@ -389,6 +393,9 @@ async function handleMessage(sock, msg, sessionId) {
         args = [body];
       } else if (ssub && ssub.hasPending && ssub.hasPending(from)) {
         commandName = 'ssub';
+        args = [body];
+      } else if (fitgirl && fitgirl.hasPending && fitgirl.hasPending(from)) {
+        commandName = 'fitgirl';
         args = [body];
       } else if (/^[1-9]$/.test(body) && isPanelReply(msg, 'settings')) {
         commandName = 'settings';
@@ -400,6 +407,12 @@ async function handleMessage(sock, msg, sessionId) {
       } else if (body === '7') {
         commandName = 'settings';
         args = ['num', '7'];
+      }
+    } else if (['m', 'mag', 'magnet'].includes(body.toLowerCase())) {
+      const fitgirl = getCommand('fitgirl') || require('../commands/download/fitgirl');
+      if (fitgirl && fitgirl.hasPending && fitgirl.hasPending(from)) {
+        commandName = 'fitgirl';
+        args = ['magnet'];
       }
     } else if (body.startsWith(config.prefix || '.')) {
       // 2) Normal prefix commands

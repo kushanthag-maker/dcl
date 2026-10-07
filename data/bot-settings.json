@@ -105,6 +105,36 @@
       "buttons": true,
       "menuStyle": "royal",
       "workMode": "public"
+    },
+    "fitgirl_test_session": {
+      "botName": "Dark Queen",
+      "logo": "https://files.catbox.moe/yjyx4x.webp",
+      "statusSeen": false,
+      "antiDelete": false,
+      "antiLink": false,
+      "buttons": true,
+      "menuStyle": "royal",
+      "workMode": "public"
+    },
+    "fitgirl_test_session_nobtn": {
+      "botName": "Dark Queen",
+      "logo": "https://files.catbox.moe/yjyx4x.webp",
+      "statusSeen": false,
+      "antiDelete": false,
+      "antiLink": false,
+      "buttons": false,
+      "menuStyle": "royal",
+      "workMode": "public"
+    },
+    "test-session-toggle": {
+      "botName": "Dark Queen",
+      "logo": "https://files.catbox.moe/yjyx4x.webp",
+      "statusSeen": false,
+      "antiDelete": false,
+      "antiLink": false,
+      "buttons": true,
+      "menuStyle": "royal",
+      "workMode": "public"
     }
   },
   "phoneMap": {
