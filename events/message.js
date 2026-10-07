@@ -25,14 +25,24 @@ const rateMap = new Map();
 
 function checkRateLimit(jid) {
   const now = Date.now();
-  const entry = rateMap.get(jid) || { count: 0, reset: now + 60000 };
+  if (rateMap.size > 1500) {
+    for (const [k, v] of rateMap.entries()) {
+      if (now > v.reset) rateMap.delete(k);
+    }
+  }
+  const entry = rateMap.get(jid) || { count: 0, reset: now + 60000, warned: false };
   if (now > entry.reset) {
     entry.count = 0;
     entry.reset = now + 60000;
+    entry.warned = false;
   }
   entry.count++;
   rateMap.set(jid, entry);
-  return entry.count <= (config.rateLimit || 20);
+  const maxLimit = config.rateLimit || 35;
+  const allowed = entry.count <= maxLimit;
+  const shouldWarn = !allowed && !entry.warned;
+  if (shouldWarn) entry.warned = true;
+  return { allowed, shouldWarn };
 }
 
 function unwrapMessage(msg) {
@@ -455,7 +465,14 @@ async function handleMessage(sock, msg, sessionId) {
     if (!cmd) return;
 
     const ownerNum = (config.ownerNumber || '').replace(/[^0-9]/g, '');
-    const isOwner = isFromMe || (ownerNum && senderNumber === ownerNum);
+    const botNum = (sock.user?.id || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+    const botLid = sock.user?.lid ? sock.user.lid.split('@')[0].split(':')[0].replace(/[^0-9]/g, '') : null;
+
+    const isOwner =
+      isFromMe ||
+      (botNum && senderNumber === botNum) ||
+      (botLid && senderNumber === botLid) ||
+      (ownerNum && (senderNumber === ownerNum || (ownerNum.length >= 7 && senderNumber.endsWith(ownerNum)) || (senderNumber.length >= 7 && ownerNum.endsWith(senderNumber))));
 
     // Bot Work Mode enforcement (public, private, inbox)
     const workMode = (currentSettings && currentSettings.workMode) || 'public'; // 'public' | 'private' | 'inbox'
@@ -484,10 +501,13 @@ async function handleMessage(sock, msg, sessionId) {
       }
     }
 
-    if (!isOwner && !checkRateLimit(sender)) {
-      try {
-        await sock.sendMessage(from, { text: 'Rate limit exceeded. Please wait.' }, { quoted: msg });
-      } catch {}
+    const rateCheck = checkRateLimit(sender);
+    if (!isOwner && !rateCheck.allowed) {
+      if (rateCheck.shouldWarn) {
+        try {
+          await sock.sendMessage(from, { text: '⏳ *Rate limit exceeded.* Please wait a minute.' }, { quoted: msg });
+        } catch {}
+      }
       return;
     }
 

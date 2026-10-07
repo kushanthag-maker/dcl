@@ -17,7 +17,7 @@
       "antiLink": true,
       "buttons": true,
       "menuStyle": "royal",
-      "workMode": "private"
+      "workMode": "public"
     },
     "test_session": {
       "botName": "Dark Queen",
@@ -64,7 +64,7 @@
       "antiLink": false,
       "buttons": true,
       "menuStyle": "royal",
-      "workMode": "private"
+      "workMode": "public"
     },
     "test_debug_2": {
       "botName": "Dark Queen",
@@ -74,7 +74,7 @@
       "antiLink": false,
       "buttons": true,
       "menuStyle": "royal",
-      "workMode": "private"
+      "workMode": "public"
     },
     "test_check": {
       "botName": "Dark Queen",
@@ -84,7 +84,7 @@
       "antiLink": false,
       "buttons": true,
       "menuStyle": "royal",
-      "workMode": "inbox"
+      "workMode": "public"
     },
     "test_step": {
       "botName": "Dark Queen",
@@ -94,7 +94,7 @@
       "antiLink": false,
       "buttons": true,
       "menuStyle": "royal",
-      "workMode": "inbox"
+      "workMode": "public"
     },
     "test_suite_session": {
       "botName": "Dark Queen",
@@ -162,7 +162,7 @@
     "4783262292": "bot_262292_9845",
     "94770384783": "bot_384783_5764",
     "4770384783": "bot_384783_5764",
-    "94769904294": "bot_904294_5733",
-    "4769904294": "bot_904294_5733"
+    "94769904294": "bot_904294_1311",
+    "4769904294": "bot_904294_1311"
   }
 }

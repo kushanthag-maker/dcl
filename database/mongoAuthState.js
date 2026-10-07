@@ -32,7 +32,24 @@ function loadMockData() {
   return mockData;
 }
 
-function saveMockData() {
+let saveTimer = null;
+function saveMockData(immediate = false) {
+  if (!immediate) {
+    if (saveTimer) return;
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      _writeMockDataSync();
+    }, 150);
+    return;
+  }
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  _writeMockDataSync();
+}
+
+function _writeMockDataSync() {
   try {
     const dir = path.dirname(MOCK_DB_FILE);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -295,7 +312,7 @@ async function useMongoAuthState(mongoUri, sessionId) {
 
   try {
     const { registerSessionCleaner } = require('../lib/signalAutoHeal');
-    registerSessionCleaner(clearCorruptedKeys);
+    registerSessionCleaner(sessionId, clearCorruptedKeys);
   } catch (_) {}
 
   return {
