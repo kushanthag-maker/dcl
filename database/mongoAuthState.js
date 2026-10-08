@@ -178,6 +178,14 @@ function createMockCollection(name) {
   };
 }
 
+function withTimeout(promise, ms = 5000) {
+  let timer;
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Operation timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+}
+
 function createMockDb() {
   return {
     collection: (name) => createMockCollection(name),
@@ -195,7 +203,7 @@ async function connectMongo(uri) {
 
   if (db && client) {
     try {
-      await client.db('admin').command({ ping: 1 });
+      await withTimeout(client.db('admin').command({ ping: 1 }), 3000);
       return db;
     } catch (e) {
       try { await client.close(); } catch (e2) {}
@@ -210,8 +218,11 @@ async function connectMongo(uri) {
     try {
       client = new MongoClient(uri, {
         maxPoolSize: 10,
-        serverSelectionTimeoutMS: 5000,
-        connectTimeoutMS: 5000,
+        minPoolSize: 1,
+        serverSelectionTimeoutMS: 15000,
+        connectTimeoutMS: 30000,
+        socketTimeoutMS: 45000,
+        retryWrites: true,
       });
       await client.connect();
       db = client.db('dcl_mini_bot');
@@ -234,16 +245,18 @@ async function useMongoAuthState(mongoUri, sessionId) {
   sessionId = sessionId || 'default';
   var database = await connectMongo(mongoUri);
   var collection = database.collection('sessions');
+  var localCollection = createMockCollection('sessions');
 
-  await collection.createIndex({ sessionId: 1, key: 1 }, { unique: true }).catch(function () {});
+  await withTimeout(collection.createIndex({ sessionId: 1, key: 1 }, { unique: true }), 3000).catch(function () {});
 
   // High-performance in-memory key cache to prevent decryption delays
   var keyCache = new Map();
 
   var writeData = async function (key, data) {
     keyCache.set(key, data);
+    // 1. Immediately persist to local backup store
     try {
-      await collection.updateOne(
+      await localCollection.updateOne(
         { sessionId: sessionId, key: key },
         {
           $set: {
@@ -255,8 +268,27 @@ async function useMongoAuthState(mongoUri, sessionId) {
         },
         { upsert: true }
       );
+    } catch (_) {}
+
+    // 2. Persist to MongoDB with timeout so connection hiccups never freeze Baileys handshake
+    try {
+      await withTimeout(
+        collection.updateOne(
+          { sessionId: sessionId, key: key },
+          {
+            $set: {
+              sessionId: sessionId,
+              key: key,
+              data: JSON.stringify(data, BufferJSON.replacer),
+              updatedAt: new Date(),
+            },
+          },
+          { upsert: true }
+        ),
+        5000
+      );
     } catch (e) {
-      console.error('[MongoDB] writeData error:', e.message);
+      console.warn(chalk.yellow(`[MongoDB] writeData warning (${e.message}) — persisted to local backup`));
     }
   };
 
@@ -264,7 +296,15 @@ async function useMongoAuthState(mongoUri, sessionId) {
     if (keyCache.has(key)) {
       return keyCache.get(key);
     }
-    var doc = await collection.findOne({ sessionId: sessionId, key: key });
+    var doc = null;
+    try {
+      doc = await withTimeout(collection.findOne({ sessionId: sessionId, key: key }), 5000);
+    } catch (e) {}
+    if (!doc || !doc.data) {
+      try {
+        doc = await localCollection.findOne({ sessionId: sessionId, key: key });
+      } catch (_) {}
+    }
     if (!doc || !doc.data) return null;
     try {
       var parsed = JSON.parse(doc.data, BufferJSON.reviver);
@@ -278,7 +318,10 @@ async function useMongoAuthState(mongoUri, sessionId) {
   var removeData = async function (key) {
     keyCache.delete(key);
     try {
-      await collection.deleteOne({ sessionId: sessionId, key: key });
+      await localCollection.deleteOne({ sessionId: sessionId, key: key });
+    } catch (_) {}
+    try {
+      await withTimeout(collection.deleteOne({ sessionId: sessionId, key: key }), 3000);
     } catch (_) {}
   };
 
@@ -303,10 +346,20 @@ async function useMongoAuthState(mongoUri, sessionId) {
     }
 
     try {
-      await collection.deleteMany({
+      await localCollection.deleteMany({
         sessionId: sessionId,
         key: { $in: possibleKeys },
       });
+    } catch (_) {}
+
+    try {
+      await withTimeout(
+        collection.deleteMany({
+          sessionId: sessionId,
+          key: { $in: possibleKeys },
+        }),
+        3000
+      );
     } catch (_) {}
   };
 
@@ -342,24 +395,30 @@ async function useMongoAuthState(mongoUri, sessionId) {
           var queryKeys = missingIds.map(function (mid) {
             return type + '-' + mid;
           });
+          var docs = [];
           try {
-            var docs = await collection
-              .find({ sessionId: sessionId, key: { $in: queryKeys } })
-              .toArray();
-
-            for (var d = 0; d < docs.length; d++) {
-              var doc = docs[d];
-              if (doc && doc.data) {
-                try {
-                  var val = JSON.parse(doc.data, BufferJSON.reviver);
-                  var realId = doc.key.slice(type.length + 1);
-                  keyCache.set(doc.key, val);
-                  data[realId] = val;
-                } catch (_) {}
-              }
-            }
+            docs = await withTimeout(
+              collection.find({ sessionId: sessionId, key: { $in: queryKeys } }).toArray(),
+              5000
+            );
           } catch (e) {
-            console.error('[MongoDB] batch keys.get error:', e.message);
+            try {
+              docs = await localCollection
+                .find({ sessionId: sessionId, key: { $in: queryKeys } })
+                .toArray();
+            } catch (_) {}
+          }
+
+          for (var d = 0; d < docs.length; d++) {
+            var doc = docs[d];
+            if (doc && doc.data) {
+              try {
+                var val = JSON.parse(doc.data, BufferJSON.reviver);
+                var realId = doc.key.slice(type.length + 1);
+                keyCache.set(doc.key, val);
+                data[realId] = val;
+              } catch (_) {}
+            }
           }
 
           return data;
@@ -402,9 +461,12 @@ async function useMongoAuthState(mongoUri, sessionId) {
           }
           if (operations.length > 0) {
             try {
-              await collection.bulkWrite(operations, { ordered: false });
+              await localCollection.bulkWrite(operations, { ordered: false });
+            } catch (_) {}
+            try {
+              await withTimeout(collection.bulkWrite(operations, { ordered: false }), 5000);
             } catch (e) {
-              console.error('[MongoDB] bulkWrite keys.set error:', e.message);
+              console.warn(chalk.yellow(`[MongoDB] bulkWrite keys.set warning (${e.message}) — persisted to local backup`));
             }
           }
         },
@@ -415,7 +477,12 @@ async function useMongoAuthState(mongoUri, sessionId) {
     },
     clearSession: async function () {
       keyCache.clear();
-      await collection.deleteMany({ sessionId: sessionId });
+      try {
+        await localCollection.deleteMany({ sessionId: sessionId });
+      } catch (_) {}
+      try {
+        await withTimeout(collection.deleteMany({ sessionId: sessionId }), 4000);
+      } catch (_) {}
       console.log(chalk.yellow('[MongoDB] Session ' + sessionId + ' cleared'));
     },
   };
@@ -427,19 +494,42 @@ async function useMongoAuthState(mongoUri, sessionId) {
 async function listSavedSessions(mongoUri) {
   var database = await connectMongo(mongoUri);
   var collection = database.collection('sessions');
-  var docs = await collection.find({ key: 'creds' }).project({ sessionId: 1, data: 1 }).toArray();
-  var result = [];
+  var localCollection = createMockCollection('sessions');
+  var docs = [];
+  try {
+    docs = await withTimeout(collection.find({ key: 'creds' }).project({ sessionId: 1, data: 1 }).toArray(), 5000);
+  } catch (e) {
+    try {
+      docs = await localCollection.find({ key: 'creds' }).project({ sessionId: 1, data: 1 }).toArray();
+    } catch (_) {}
+  }
+  var result = new Set();
   for (var i = 0; i < docs.length; i++) {
     var doc = docs[i];
     if (!doc.sessionId || !doc.data) continue;
     try {
       var creds = JSON.parse(doc.data, BufferJSON.reviver);
       if (creds && creds.registered) {
-        result.push(doc.sessionId);
+        result.add(doc.sessionId);
       }
     } catch (e) {}
   }
-  return result;
+
+  try {
+    var localDocs = await localCollection.find({ key: 'creds' }).project({ sessionId: 1, data: 1 }).toArray();
+    for (var j = 0; j < localDocs.length; j++) {
+      var ldoc = localDocs[j];
+      if (!ldoc.sessionId || !ldoc.data) continue;
+      try {
+        var lcreds = JSON.parse(ldoc.data, BufferJSON.reviver);
+        if (lcreds && lcreds.registered) {
+          result.add(ldoc.sessionId);
+        }
+      } catch (e) {}
+    }
+  } catch (_) {}
+
+  return Array.from(result);
 }
 
 async function closeMongo() {

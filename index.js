@@ -41,6 +41,20 @@ restoreAllSessions()
   });
 
 process.on('uncaughtException', (err) => {
+  const msg = err?.message || String(err || '');
+  const isTransientSocket =
+    msg.includes('WebSocket was closed') ||
+    msg.includes('Opening handshake has timed out') ||
+    msg.includes('Connection Closed') ||
+    msg.includes('ECONNRESET') ||
+    msg.includes('ETIMEDOUT') ||
+    msg.includes('EPIPE') ||
+    msg.includes('1006');
+
+  if (isTransientSocket) {
+    console.warn('[WA-SOCKET-DROP] Transient socket uncaught exception handled gracefully:', msg);
+    return;
+  }
   console.error('[UNCAUGHT]', err.message);
   console.error(err.stack);
 });
@@ -49,7 +63,7 @@ process.on('unhandledRejection', (reason) => {
   const msg = reason?.message || String(reason || '');
   const payloadError = reason?.output?.payload?.error || '';
   const payloadMessage = reason?.output?.payload?.message || '';
-  const statusCode = reason?.output?.statusCode || 0;
+  const statusCode = reason?.output?.statusCode || (typeof reason === 'number' ? reason : 0);
 
   const isTransientSocketEvent =
     msg.includes('Timed Out') ||
@@ -57,6 +71,8 @@ process.on('unhandledRejection', (reason) => {
     msg.includes('Connection Closed') ||
     msg.includes('Precondition Required') ||
     msg.includes('WebSocket was closed') ||
+    msg.includes('Opening handshake has timed out') ||
+    msg.includes('WebSocket Error') ||
     msg.includes('Connection Terminated') ||
     msg.includes('rate-overlimit') ||
     msg.includes('QR refs attempts ended') ||
@@ -67,6 +83,10 @@ process.on('unhandledRejection', (reason) => {
     msg.includes('ETIMEDOUT') ||
     msg.includes('EPIPE') ||
     msg.includes('ENOTFOUND') ||
+    msg.includes('1006') ||
+    msg === '1006' ||
+    reason === 1006 ||
+    statusCode === 1006 ||
     payloadError.includes('Time-out') ||
     payloadError.includes('Precondition Required') ||
     payloadError.includes('Connection Closed') ||

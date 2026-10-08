@@ -46,6 +46,34 @@ try {
     }
   ]);
 
+  // 3. Patch socket.js to prevent unhandled rejection 1006 and safe cleanup on close
+  patchFile('node_modules/@whiskeysockets/baileys/lib/Socket/socket.js', [
+    {
+      from: "onErr = err => {\n                    reject(err || new boom_1.Boom('Connection Closed', { statusCode: Types_1.DisconnectReason.connectionClosed }));\n                };",
+      to: "onErr = err => {\n                    var errorObj = (err instanceof Error) ? err : new boom_1.Boom('Connection Closed (' + (err || 'abnormal') + ')', { statusCode: typeof err === 'number' ? err : Types_1.DisconnectReason.connectionClosed });\n                    reject(errorObj);\n                };"
+    },
+    {
+      from: "ws.removeAllListeners('error');\n        ws.removeAllListeners('open');",
+      to: "ws.removeAllListeners('error');\n        ws.on('error', () => {});\n        ws.removeAllListeners('open');"
+    }
+  ]);
+
+  // 4. Patch WebSocketClient to prevent unhandled error emission when socket aborts
+  patchFile('node_modules/@whiskeysockets/baileys/lib/Socket/Client/websocket.js', [
+    {
+      from: "this.socket.setMaxListeners(0);",
+      to: "try { this.socket.on('error', () => {}); } catch (_) {}\n        this.socket.setMaxListeners(0);"
+    },
+    {
+      from: "(_b = this.socket) === null || _b === void 0 ? void 0 : _b.on(event, (...args) => this.emit(event, ...args));",
+      to: "(_b = this.socket) === null || _b === void 0 ? void 0 : _b.on(event, (...args) => {\n                if (event === 'error' && this.listenerCount('error') === 0) return;\n                this.emit(event, ...args);\n            });"
+    },
+    {
+      from: "this.socket.close();\n        this.socket = null;",
+      to: "try {\n            this.socket.on('error', () => {});\n            this.socket.close();\n        } catch (_) {}\n        this.socket = null;"
+    }
+  ]);
+
   console.log('[patch-baileys] Baileys Node 22/24 compatibility patch complete.');
 } catch (e) {
   console.warn('[patch-baileys] Warning:', e.message);
