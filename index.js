@@ -4,6 +4,7 @@
  */
 
 console.log('[BOOT] Starting DCL MINI Multi-Session...');
+try { require('./scripts/patch-baileys'); } catch (_) {}
 require('./lib/signalAutoHeal');
 console.log('[BOOT] Node version:', process.version);
 console.log('[BOOT] PORT:', process.env.PORT || 'not set');
@@ -46,16 +47,41 @@ process.on('uncaughtException', (err) => {
 
 process.on('unhandledRejection', (reason) => {
   const msg = reason?.message || String(reason || '');
-  const isRateLimit =
-    msg.includes('rate-overlimit') ||
-    reason?.output?.payload?.message?.includes('internal server error') ||
-    reason?.output?.statusCode === 500;
+  const payloadError = reason?.output?.payload?.error || '';
+  const payloadMessage = reason?.output?.payload?.message || '';
+  const statusCode = reason?.output?.statusCode || 0;
 
-  if (isRateLimit) {
-    console.warn('[WA-THROTTLE] WhatsApp media upload rate limit throttled, handled gracefully');
+  const isTransientSocketEvent =
+    msg.includes('Timed Out') ||
+    msg.includes('Request Time-out') ||
+    msg.includes('Connection Closed') ||
+    msg.includes('Precondition Required') ||
+    msg.includes('WebSocket was closed') ||
+    msg.includes('Connection Terminated') ||
+    msg.includes('rate-overlimit') ||
+    msg.includes('QR refs attempts ended') ||
+    msg.includes('conflict') ||
+    msg.includes('SessionError') ||
+    msg.includes('Bad MAC') ||
+    msg.includes('ECONNRESET') ||
+    msg.includes('ETIMEDOUT') ||
+    msg.includes('EPIPE') ||
+    msg.includes('ENOTFOUND') ||
+    payloadError.includes('Time-out') ||
+    payloadError.includes('Precondition Required') ||
+    payloadError.includes('Connection Closed') ||
+    payloadMessage.includes('internal server error') ||
+    statusCode === 408 ||
+    statusCode === 428 ||
+    statusCode === 440 ||
+    statusCode === 500 ||
+    statusCode === 503;
+
+  if (isTransientSocketEvent) {
+    console.warn('[WA-SOCKET-DROP] Transient socket event handled gracefully:', msg || payloadError || statusCode);
     return;
   }
-  console.error('[UNHANDLED REJECTION]', reason);
+  console.warn('[UNHANDLED REJECTION]', msg || reason);
 });
 
 process.on('SIGTERM', () => {
