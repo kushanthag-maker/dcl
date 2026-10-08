@@ -74,6 +74,28 @@ try {
     }
   ]);
 
+  // 5. Ensure tobi package resolves properly
+  const tobiPkgPath = path.join(__dirname, '..', 'node_modules/tobi/package.json');
+  if (fs.existsSync(tobiPkgPath)) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(tobiPkgPath, 'utf8'));
+      pkg.main = './tobi/index.js';
+      pkg.types = './tobi/types.d.ts';
+      pkg.exports = {
+        '.': './tobi/index.js',
+        './tobi': './tobi/index.js',
+        './lib/*': './tobi/lib/*'
+      };
+      fs.writeFileSync(tobiPkgPath, JSON.stringify(pkg, null, 2));
+      const localTobi = path.join(__dirname, '..', 'lib/tobi/index.js');
+      const targetTobi = path.join(__dirname, '..', 'node_modules/tobi/tobi/index.js');
+      if (fs.existsSync(localTobi) && fs.existsSync(path.dirname(targetTobi))) {
+        fs.copyFileSync(localTobi, targetTobi);
+      }
+      console.log('[patch-baileys] Tobi independent package configured.');
+    } catch (_) {}
+  }
+
   console.log('[patch-baileys] Baileys Node 22/24 compatibility patch complete.');
 } catch (e) {
   console.warn('[patch-baileys] Warning:', e.message);

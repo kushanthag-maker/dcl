@@ -4,7 +4,7 @@
  */
 
 const { MongoClient } = require('mongodb');
-const { initAuthCreds, BufferJSON } = require('@whiskeysockets/baileys');
+const { initAuthCreds, BufferJSON } = require('tobi');
 const chalk = require('chalk');
 const fs = require('fs');
 const path = require('path');
