@@ -14,7 +14,7 @@
  */
 
 const axios = require('axios');
-const { TobiStreamEngine } = require('../../tobi');
+const { StreamEngine, TobiStreamEngine } = require('../../lib/streamMedia');
 const config = require('../../config');
 const { getSettings } = require('../../lib/botSettings');
 const logger = require('../../lib/logger');
@@ -138,51 +138,8 @@ async function resolveDownload(partUrl) {
 
 /* ---------------- Interactive Message Helper ---------------- */
 
-async function sendInteractiveSelect(sock, jid, { text, footer, buttonText, sections, imageUrl, quoted }) {
-  const { generateWAMessageFromContent, prepareWAMessageMedia } = require('@whiskeysockets/baileys');
-
-  const nativeFlowButtons = [
-    {
-      name: 'single_select',
-      buttonParamsJson: JSON.stringify({ title: buttonText, sections }),
-    },
-  ];
-
-  let header = { title: '🎮 𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐 · 𝐅𝐈𝐓𝐆𝐈𝐑𝐋', hasMediaAttachment: false };
-  if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
-    try {
-      const media = await prepareWAMessageMedia(
-        { image: { url: imageUrl } },
-        { upload: sock.waUploadToServer }
-      );
-      if (media && media.imageMessage) {
-        header = { title: '🎮 𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐 · 𝐅𝐈𝐓𝐆𝐈𝐑𝐋', hasMediaAttachment: true, imageMessage: media.imageMessage };
-      }
-    } catch (_) {
-      header = { title: '🎮 𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐 · 𝐅𝐈𝐓𝐆𝐈𝐑𝐋', hasMediaAttachment: false };
-    }
-  }
-
-  const full = generateWAMessageFromContent(
-    jid,
-    {
-      messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 },
-      interactiveMessage: {
-        body: { text: text || ' ' },
-        footer: { text: footer || BRAND_FOOTER },
-        header,
-        nativeFlowMessage: {
-          buttons: nativeFlowButtons,
-          messageParamsJson: '{}',
-        },
-      },
-    },
-    { userJid: sock.user?.id, quoted }
-  );
-
-  await sock.relayMessage(jid, full.message, { messageId: full.key.id });
-  return full;
-}
+/* ---------------- Interactive Message Helper ---------------- */
+const { sendInteractiveSelect } = require('../../lib/sendButtons');
 
 async function sendSafeCard(sock, from, msg, text, imageUrl) {
   if (imageUrl && /^https?:\/\//i.test(imageUrl)) {

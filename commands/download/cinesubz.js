@@ -124,51 +124,7 @@ async function fetchInfo(targetUrl) {
 }
 
 /* ---------------- Interactive Message Helper ---------------- */
-async function sendInteractiveSelect(sock, jid, { text, footer, buttonText, sections, imageUrl, quoted }) {
-  const { generateWAMessageFromContent, prepareWAMessageMedia } = require('@whiskeysockets/baileys');
-
-  const nativeFlowButtons = [
-    {
-      name: 'single_select',
-      buttonParamsJson: JSON.stringify({ title: buttonText, sections }),
-    },
-  ];
-
-  let header = { title: '👑 𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐 · 𝐂𝐈𝐍𝐄𝐒𝐔𝐁𝐙', hasMediaAttachment: false };
-  if (imageUrl && /^https?:\/\//i.test(imageUrl)) {
-    try {
-      const media = await prepareWAMessageMedia(
-        { image: { url: imageUrl } },
-        { upload: sock.waUploadToServer }
-      );
-      if (media && media.imageMessage) {
-        header = { title: '👑 𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐 · 𝐂𝐈𝐍𝐄𝐒𝐔𝐁𝐙', hasMediaAttachment: true, imageMessage: media.imageMessage };
-      }
-    } catch (_) {
-      header = { title: '👑 𝐃𝐀𝐑𝐊 𝐐𝐔𝐄𝐄𝐍 𝐕𝟐 · 𝐂𝐈𝐍𝐄𝐒𝐔𝐁𝐙', hasMediaAttachment: false };
-    }
-  }
-
-  const full = generateWAMessageFromContent(
-    jid,
-    {
-      messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 },
-      interactiveMessage: {
-        body: { text: text || ' ' },
-        footer: { text: footer || BRAND_FOOTER },
-        header,
-        nativeFlowMessage: {
-          buttons: nativeFlowButtons,
-          messageParamsJson: '{}',
-        },
-      },
-    },
-    { userJid: sock.user?.id, quoted }
-  );
-
-  await sock.relayMessage(jid, full.message, { messageId: full.key.id });
-  return full;
-}
+const { sendInteractiveSelect } = require('../../lib/sendButtons');
 
 /* ---------------- Safe Message Delivery ---------------- */
 async function sendSafeCard(sock, from, msg, text, imageUrl) {

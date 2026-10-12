@@ -96,6 +96,26 @@ module.exports = {
 ╰──────────────────────╯
 `.trim();
 
+    // If buttons are enabled, send interactive buttons via Tobi Engine
+    if (settings.buttons !== false) {
+      try {
+        const { sendQuickReplies } = require('../../lib/sendButtons');
+        await sendQuickReplies(sock, from, {
+          text: caption,
+          footer: `👑 ${botName} · Powered by Tobi Engine`,
+          imageUrl: getAliveLogo(sid),
+          buttons: [
+            { id: `${prefix}menu`, text: '📜 Commands Menu' },
+            { id: `${prefix}ping`, text: '⚡ Ping' },
+          ],
+          quoted: msg,
+        });
+        return;
+      } catch (buttonErr) {
+        logger.warn('Alive buttons fallback: ' + (buttonErr?.message || buttonErr));
+      }
+    }
+
     // Primary attempt: image with status caption
     try {
       await sock.sendMessage(

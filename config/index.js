@@ -19,7 +19,7 @@ const config = {
   autoStatus: false,
 
   // Rate limit (messages per minute per user)
-  rateLimit: 20,
+  rateLimit: 45,
 };
 
 if (!config.mongoUri || config.mongoUri.includes('YOUR_MONGODB')) {

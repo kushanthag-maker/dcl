@@ -38,7 +38,7 @@ function checkRateLimit(jid) {
   }
   entry.count++;
   rateMap.set(jid, entry);
-  const maxLimit = config.rateLimit || 35;
+  const maxLimit = config.rateLimit || 45;
   const allowed = entry.count <= maxLimit;
   const shouldWarn = !allowed && !entry.warned;
   if (shouldWarn) entry.warned = true;

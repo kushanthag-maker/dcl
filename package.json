@@ -31,8 +31,7 @@
     "mongodb": "^6.12.0",
     "pino": "^9.6.0",
     "qrcode": "^1.5.4",
-    "qrcode-terminal": "^0.12.0",
-    "tobi": "git+https://github.com/kushanthag-maker/tobi.git"
+    "qrcode-terminal": "^0.12.0"
   },
   "overrides": {
     "p-queue": "6.6.2"
