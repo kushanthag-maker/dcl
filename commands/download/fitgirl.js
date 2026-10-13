@@ -308,7 +308,7 @@ async function deliverPackCard(sock, from, msg, partItem, gameTitle, totalParts)
           `🎮 *Game* : *${gameTitle}*\n` +
           `📁 *File* : \`${resolvedFileName}\`\n` +
           `📊 *Size* : *${resolvedSize}*\n` +
-          `⚡ *Tobi Stream Engine මඟින් RAM Bloat රහිතව Stream වෙමින් පවතී...*`,
+          `⚡ *High-Speed Stream Engine මඟින් RAM Bloat රහිතව Stream වෙමින් පවතී...*`,
       },
       { quoted: msg }
     );
@@ -317,13 +317,13 @@ async function deliverPackCard(sock, from, msg, partItem, gameTitle, totalParts)
   let documentSent = false;
   let lastEditTime = Date.now();
 
-  // 2. Stream directly to WhatsApp as a document via TobiStreamEngine (<30MB RAM)
+  // 2. Stream directly to WhatsApp as a document via StreamEngine (<30MB RAM)
   try {
-    await TobiStreamEngine.sendLargeFile(sock, from, directDownloadUrl, {
+    await StreamEngine.sendLargeFile(sock, from, directDownloadUrl, {
       fileName: resolvedFileName,
       mimetype: 'application/x-rar-compressed',
       asDocument: true,
-      caption: `🎮 *${gameTitle}* — Part ${partItem.partNum}/${totalParts}\n📁 \`${resolvedFileName}\`\n⚡ Powered by Tobi Engine`,
+      caption: `🎮 *${gameTitle}* — Part ${partItem.partNum}/${totalParts}\n📁 \`${resolvedFileName}\`\n⚡ High-Speed Direct Stream`,
       quoted: msg,
       onProgress: async (p) => {
         const now = Date.now();
